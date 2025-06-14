@@ -4,12 +4,24 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import ScreenWrapper from '../components/screenwraper';
-import { theme } from '../constrants/theme';
 import Button from '../components/Button';
 import Feather from '@expo/vector-icons/Feather';
 import { NavigationBar } from '../components/NavigationBar';
-// API URL for FastAPI backend - updated to match your backend
+
 const API_URL = 'http://10.25.33.16:8000';
+
+const colors = {
+  primary: '#007AFF',
+  secondary: '#5856D6',
+  success: '#34C759',
+  warning: '#FF9500',
+  danger: '#FF3B30',
+  background: '#F2F2F7',
+  surface: '#FFFFFF',
+  text: '#1C1C1E',
+  textSecondary: '#8E8E93',
+  border: '#C6C6C8',
+};
 
 const Chatbot = ({ navigation }) => {
   const [text, setText] = useState('');
@@ -22,37 +34,28 @@ const Chatbot = ({ navigation }) => {
   const [currentSound, setCurrentSound] = useState(null);
   const [playingAudioId, setPlayingAudioId] = useState(null);
   const [Audio, setAudio] = useState(null);
-  
-  // STT related states
   const [recording, setRecording] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingPermission, setRecordingPermission] = useState(false);
   const [sttLoading, setSttLoading] = useState(false);
   const [showSTTOptions, setShowSTTOptions] = useState(false);
-  
-  // Initialize and get user data when component mounts
+
   useEffect(() => {
     const init = async () => {
-      // Check if audio is available and initialize it
       try {
         const AudioModule = await import('expo-av');
         if (AudioModule && AudioModule.Audio) {
           setAudio(AudioModule.Audio);
           setAudioAvailable(true);
-          
-          // Initialize audio mode
           await AudioModule.Audio.setAudioModeAsync({
             playsInSilentModeIOS: true,
             staysActiveInBackground: false,
             shouldDuckAndroid: true,
             playThroughEarpieceAndroid: false,
-            allowsRecordingIOS: true, // Enable recording for STT
+            allowsRecordingIOS: true,
           });
-          
-          // Request recording permissions
           const { status } = await AudioModule.Audio.requestPermissionsAsync();
           setRecordingPermission(status === 'granted');
-          
           console.log('Audio initialized successfully');
           console.log('Recording permission:', status === 'granted');
         }
@@ -61,26 +64,19 @@ const Chatbot = ({ navigation }) => {
         setAudioAvailable(false);
         setRecordingPermission(false);
       }
-      
-      // Get user data from AsyncStorage
+
       try {
         const userJson = await AsyncStorage.getItem('user');
         if (userJson) {
           const userData = JSON.parse(userJson);
           console.log('Retrieved user data for chatbot:', userData);
-          
           setUserId(userData.id);
           setToken(userData.token);
-          
-          // Set default authorization header
           axios.defaults.headers.common['Authorization'] = `Bearer ${userData.token}`;
-          
-          // Fetch chat history
           fetchHistory(userData.token);
         } else {
-          // If no user data, redirect to login
           Alert.alert(
-            'Authentication Required', 
+            'Authentication Required',
             'Please login to use the chatbot',
             [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
           );
@@ -90,10 +86,9 @@ const Chatbot = ({ navigation }) => {
         Alert.alert('Error', 'Failed to load user data. Please login again.');
       }
     };
-    
+
     init();
-    
-    // Cleanup function
+
     return () => {
       if (currentSound) {
         currentSound.unloadAsync().catch(console.error);
@@ -103,67 +98,48 @@ const Chatbot = ({ navigation }) => {
       }
     };
   }, [navigation]);
-  
+
   const fetchHistory = async (authToken) => {
     if (!authToken) return;
-    
     try {
       console.log('Fetching chat history...');
       const response = await axios.get(`${API_URL}/chat/history`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
+        headers: { 'Authorization': `Bearer ${authToken}` }
       });
       console.log('Chat history response:', response.data);
       setMessages(response.data);
     } catch (error) {
       console.error('Error fetching history:', error);
-      // Don't show alert for history fetch failure, just log it
     }
   };
 
-  // Handle audio playback with actual audio playing
   const handlePlayAudio = async (audioPath, messageId) => {
     if (!audioAvailable || !Audio) {
       Alert.alert('Audio Unavailable', 'Audio playback is not available on this device.');
       return;
     }
-    
     try {
-      // Stop any currently playing audio
       if (currentSound) {
         await currentSound.stopAsync();
         await currentSound.unloadAsync();
         setCurrentSound(null);
         setPlayingAudioId(null);
       }
-      
-      // If we're clicking the same audio that was playing, just stop it
-      if (playingAudioId === messageId) {
-        return;
-      }
-      
+      if (playingAudioId === messageId) return;
       const audioUrl = `${API_URL}${audioPath}`;
       console.log('Playing audio from:', audioUrl);
-      
-      // Set playing state immediately for UI feedback
       setPlayingAudioId(messageId);
-      
-      // Create and load the sound
       const { sound } = await Audio.Sound.createAsync(
         { uri: audioUrl },
         { shouldPlay: true },
         (status) => {
-          // Status callback to handle playback events
           if (status.didJustFinish) {
             setPlayingAudioId(null);
             setCurrentSound(null);
           }
         }
       );
-      
       setCurrentSound(sound);
-      
     } catch (error) {
       console.error('Error playing audio:', error);
       setPlayingAudioId(null);
@@ -171,7 +147,6 @@ const Chatbot = ({ navigation }) => {
     }
   };
 
-  // Stop audio playback
   const stopAudio = async () => {
     if (currentSound) {
       try {
@@ -185,27 +160,18 @@ const Chatbot = ({ navigation }) => {
     }
   };
 
-  // Start recording for STT
   const startRecording = async () => {
     if (!audioAvailable || !Audio) {
       Alert.alert('Audio Unavailable', 'Audio recording is not available on this device.');
       return;
     }
-
     if (!recordingPermission) {
       Alert.alert('Permission Required', 'Microphone permission is required for speech-to-text.');
       return;
     }
-
     try {
-      // Stop any playing audio first
-      if (currentSound) {
-        await stopAudio();
-      }
-
+      if (currentSound) await stopAudio();
       console.log('Starting recording...');
-      
-      // Set audio mode for recording with valid settings
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -213,23 +179,21 @@ const Chatbot = ({ navigation }) => {
         playThroughEarpieceAndroid: false,
         staysActiveInBackground: false,
       });
-
-      // Create recording with better settings for speech recognition
       const recordingOptions = {
         android: {
           extension: '.wav',
           outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_PCM_16BIT,
           audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_PCM_16BIT,
-          sampleRate: 16000, // 16kHz is optimal for speech recognition
-          numberOfChannels: 1, // Mono
+          sampleRate: 16000,
+          numberOfChannels: 1,
           bitRate: 128000,
         },
         ios: {
           extension: '.wav',
           outputFormat: Audio.RECORDING_OPTION_IOS_OUTPUT_FORMAT_LINEARPCM,
           audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_HIGH,
-          sampleRate: 16000, // 16kHz is optimal for speech recognition
-          numberOfChannels: 1, // Mono
+          sampleRate: 16000,
+          numberOfChannels: 1,
           bitRate: 128000,
           linearPCMBitDepth: 16,
           linearPCMIsBigEndian: false,
@@ -240,57 +204,39 @@ const Chatbot = ({ navigation }) => {
           bitsPerSecond: 128000,
         },
       };
-
       console.log('Creating recording with options:', recordingOptions);
-
       const { recording: newRecording } = await Audio.Recording.createAsync(recordingOptions);
-
       setRecording(newRecording);
       setIsRecording(true);
       console.log('Recording started successfully');
-
-      // Optional: Add a timer to auto-stop after 60 seconds (backend limit)
       setTimeout(() => {
         if (isRecording) {
           console.log('Auto-stopping recording after 60 seconds');
           stopRecording();
         }
       }, 60000);
-
     } catch (error) {
       console.error('Failed to start recording:', error);
       setIsRecording(false);
       setRecording(null);
-      
       let errorMessage = 'Failed to start recording. ';
-      if (error.message?.includes('permission')) {
-        errorMessage += 'Please check microphone permissions.';
-      } else if (error.message?.includes('busy')) {
-        errorMessage += 'Microphone is busy. Please try again.';
-      } else {
-        errorMessage += 'Please try again.';
-      }
-      
+      if (error.message?.includes('permission')) errorMessage += 'Please check microphone permissions.';
+      else if (error.message?.includes('busy')) errorMessage += 'Microphone is busy. Please try again.';
+      else errorMessage += 'Please try again.';
       Alert.alert('Recording Error', errorMessage);
     }
   };
 
-  // Stop recording and process STT
   const stopRecording = async () => {
     if (!recording) {
       console.log('No recording to stop');
       return;
     }
-
     try {
       console.log('Stopping recording...');
       setIsRecording(false);
       setSttLoading(true);
-
-      // Stop and get the recording
       await recording.stopAndUnloadAsync();
-      
-      // Reset audio mode
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
@@ -298,38 +244,22 @@ const Chatbot = ({ navigation }) => {
         playThroughEarpieceAndroid: false,
         staysActiveInBackground: false,
       });
-
       const uri = recording.getURI();
       console.log('Recording stopped and stored at', uri);
-
-      if (!uri) {
-        throw new Error('No recording URI available');
-      }
-
-      // Get recording status to check duration and file info
+      if (!uri) throw new Error('No recording URI available');
       const status = await recording.getStatusAsync();
       console.log('Recording status:', status);
-
       if (status.durationMillis && status.durationMillis < 1000) {
         Alert.alert('Recording Too Short', 'Please record for at least 1 second.');
         return;
       }
-
-      // Send the audio file to the backend for STT processing
       await processSTT(uri);
-
     } catch (error) {
       console.error('Error stopping recording:', error);
-      
       let errorMessage = 'Failed to process recording. ';
-      if (error.message?.includes('No recording URI')) {
-        errorMessage += 'Recording file not found.';
-      } else if (error.message?.includes('duration')) {
-        errorMessage += 'Recording is too short or empty.';
-      } else {
-        errorMessage += 'Please try recording again.';
-      }
-      
+      if (error.message?.includes('No recording URI')) errorMessage += 'Recording file not found.';
+      else if (error.message?.includes('duration')) errorMessage += 'Recording is too short or empty.';
+      else errorMessage += 'Please try recording again.';
       Alert.alert('Recording Error', errorMessage);
     } finally {
       setRecording(null);
@@ -337,126 +267,86 @@ const Chatbot = ({ navigation }) => {
     }
   };
 
-  // Select audio file for STT
   const selectAudioFile = async () => {
     try {
       setShowSTTOptions(false);
-      
       console.log('Opening document picker for audio files...');
-      
       const result = await DocumentPicker.getDocumentAsync({
         type: ['audio/*'],
         copyToCacheDirectory: true,
         multiple: false,
       });
-
       console.log('Document picker result:', result);
-
       if (result.canceled) {
         console.log('Audio file selection cancelled');
         return;
       }
-
       if (!result.assets || result.assets.length === 0) {
         Alert.alert('Error', 'No audio file selected.');
         return;
       }
-
       const selectedFile = result.assets[0];
-      
-      // Validate file type
       if (!selectedFile.mimeType || !selectedFile.mimeType.startsWith('audio/')) {
         Alert.alert('Invalid File', 'Please select a valid audio file.');
         return;
       }
-
-      // Check file size (limit to 10MB for practical reasons)
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      const maxSize = 10 * 1024 * 1024;
       if (selectedFile.size && selectedFile.size > maxSize) {
         Alert.alert('File Too Large', 'Please select an audio file smaller than 10MB.');
         return;
       }
-
       console.log('Selected audio file:', selectedFile);
-      
-      // Show confirmation with file info
       Alert.alert(
         'Process Audio File',
         `File: ${selectedFile.name}\nSize: ${selectedFile.size ? (selectedFile.size / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown'}\n\nProceed with speech-to-text?`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Process', 
-            onPress: () => processSTTFromFile(selectedFile)
-          }
+          { text: 'Process', onPress: () => processSTTFromFile(selectedFile) }
         ]
       );
-
     } catch (error) {
       console.error('Error selecting audio file:', error);
       Alert.alert('Selection Error', 'Failed to select audio file. Please try again.');
     }
   };
 
-  // Process STT from selected file
   const processSTTFromFile = async (fileInfo) => {
     if (!userId || !token) {
       Alert.alert('Error', 'You must be logged in to use speech-to-text.');
       return;
     }
-
     setSttLoading(true);
-
     try {
       console.log('Processing STT for selected file:', fileInfo);
-
-      // Create FormData for multipart/form-data request
       const formData = new FormData();
       formData.append('user_id', userId.toString());
-      
-      // Add the audio file
       const audioFile = {
         uri: fileInfo.uri,
         type: fileInfo.mimeType || 'audio/wav',
         name: fileInfo.name || 'audio_file.wav',
       };
-      
       formData.append('audio_file', audioFile);
-
       console.log('Sending STT request for file...');
-
       const response = await axios.post(`${API_URL}/speech-to-text`, formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 60000, // 60 second timeout for file processing
+        timeout: 60000,
       });
-
       console.log('STT file response:', response.data);
-
-      // Add the STT result to messages
       setMessages([response.data, ...messages]);
-
-      // Optionally, set the transcribed text in the input field
-      if (response.data.response) {
-        setText(response.data.response);
-      }
-
+      if (response.data.response) setText(response.data.response);
       Alert.alert(
-        'Speech Transcribed from File', 
-        `File: ${fileInfo.name}\nDetected language: ${response.data.detected_language || 'Unknown'}\nText has been added to input field.`
+        'Speech Transcribed from File',
+        `File: ${selectedFile.name}\nDetected language: ${response.data.detected_language || 'Unknown'}\nText has been added to input field.`
       );
-
     } catch (error) {
       console.error('STT file processing error:', error);
-      
       let errorMessage = 'Failed to transcribe audio file. Please try again.';
-      
       if (error.response) {
         console.error('STT File Error status:', error.response.status);
         console.error('STT File Error data:', error.response.data);
-        
         if (error.response.status === 422) {
           errorMessage = 'Invalid audio file format or the file is too long (max 1 minute).';
         } else if (error.response.data?.detail) {
@@ -467,86 +357,55 @@ const Chatbot = ({ navigation }) => {
       } else if (error.code === 'ECONNABORTED') {
         errorMessage = 'Request timed out. The audio file might be too large or processing is taking too long.';
       }
-      
       Alert.alert('Speech-to-Text Error', errorMessage);
     } finally {
       setSttLoading(false);
     }
   };
-  // Process STT with the backend (for recorded audio)
+
   const processSTT = async (audioUri) => {
     if (!userId || !token) {
       Alert.alert('Error', 'You must be logged in to use speech-to-text.');
       return;
     }
-
     try {
       console.log('Processing STT for audio:', audioUri);
-
-      // Check if file exists and get file info
       const fileInfo = await fetch(audioUri);
-      if (!fileInfo.ok) {
-        throw new Error('Recording file not accessible');
-      }
-
+      if (!fileInfo.ok) throw new Error('Recording file not accessible');
       console.log('Audio file size:', fileInfo.headers.get('content-length'));
-
-      // Create FormData for multipart/form-data request
       const formData = new FormData();
       formData.append('user_id', userId.toString());
-      
-      // Add the audio file with proper metadata
-      const audioFile = {
-        uri: audioUri,
-        type: 'audio/wav',
-        name: 'recording.wav',
-      };
-      
+      const audioFile = { uri: audioUri, type: 'audio/wav', name: 'recording.wav' };
       formData.append('audio_file', audioFile);
-
       console.log('Sending STT request...');
-      console.log('FormData contents:', {
-        user_id: userId,
-        audio_file: audioFile
-      });
-
+      console.log('FormData contents:', { user_id: userId, audio_file: audioFile });
       const response = await axios.post(`${API_URL}/speech-to-text`, formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 30000, // 30 second timeout for STT processing
+        timeout: 30000,
       });
-
       console.log('STT response:', response.data);
-
-      // Add the STT result to messages
       setMessages([response.data, ...messages]);
-
-      // Optionally, set the transcribed text in the input field
       if (response.data.response && response.data.response.trim()) {
         setText(response.data.response);
-        
         Alert.alert(
-          'Speech Transcribed', 
+          'Speech Transcribed',
           `Detected language: ${response.data.detected_language || 'Unknown'}\nTranscribed: "${response.data.response}"\n\nText has been added to input field.`
         );
       } else {
         Alert.alert(
-          'No Speech Detected', 
+          'No Speech Detected',
           'The recording did not contain detectable speech. Please try recording again and speak clearly.'
         );
       }
-
     } catch (error) {
       console.error('STT processing error:', error);
-      
       let errorMessage = 'Failed to transcribe audio. ';
-      
       if (error.response) {
         console.error('STT Error status:', error.response.status);
         console.error('STT Error data:', error.response.data);
-        
         if (error.response.status === 422) {
           if (error.response.data?.detail?.includes('No speech detected')) {
             errorMessage = 'No speech detected in the recording. Please try speaking more clearly.';
@@ -567,34 +426,26 @@ const Chatbot = ({ navigation }) => {
       } else {
         errorMessage += 'Please try again.';
       }
-      
       Alert.alert('Speech-to-Text Error', errorMessage);
     }
   };
 
-  // Handle chat submission
   const handleSubmit = async () => {
-    // Validation checks
     if (!userId || !token) {
       Alert.alert('Error', 'You must be logged in to use the chatbot.');
       return;
     }
-    
     if (!text.trim()) {
       Alert.alert('Error', 'Please enter a message.');
       return;
     }
-    
-    // Create the exact payload that FastAPI expects
     const payload = {
-      user_id: parseInt(userId), // Ensure it's an integer
+      user_id: parseInt(userId),
       text: text.trim(),
-      action: action.toLowerCase() // Ensure it's lowercase
+      action: action.toLowerCase()
     };
-    
     console.log('Sending chat request with payload:', payload);
     setLoading(true);
-    
     try {
       const response = await axios.post(`${API_URL}/chat`, payload, {
         headers: {
@@ -602,38 +453,27 @@ const Chatbot = ({ navigation }) => {
           'Content-Type': 'application/json'
         }
       });
-      
       console.log('Chat response:', response.data);
-      
-      // Add new message to the list (add to beginning since we use inverted list)
       setMessages([response.data, ...messages]);
       setText('');
-      
-      // Handle audio response - auto-play if TTS
       if (action === 'tts' && response.data.audio_path) {
         if (audioAvailable) {
-          // Auto-play the newly generated audio
           setTimeout(() => {
             handlePlayAudio(response.data.audio_path, response.data.id);
-          }, 500); // Small delay to ensure UI is updated
+          }, 500);
         } else {
-          Alert.alert('Audio Generated', 
+          Alert.alert('Audio Generated',
             'Audio was generated successfully but playback is not available on this device.');
         }
       }
-      
     } catch (error) {
       console.error('Error processing chat:', error);
-      
-      // Enhanced error logging for debugging
       if (error.response) {
         console.error('Error status:', error.response.status);
         console.error('Error data:', error.response.data);
         console.error('Error headers:', error.response.headers);
       }
-      
       let errorMessage = 'Something went wrong while processing your request.';
-      
       if (error.response) {
         if (error.response.status === 422) {
           errorMessage = 'Invalid request data. Please check your input and try again.';
@@ -645,53 +485,54 @@ const Chatbot = ({ navigation }) => {
       } else if (error.request) {
         errorMessage = 'Unable to connect to server. Please check your internet connection.';
       }
-      
       Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // Render a chat message
   const renderMessage = ({ item }) => {
     const isPlaying = playingAudioId === item.id;
-    
+
     return (
-      <View style={styles.message}>
-        <Text style={styles.userText}>
-          You ({item.action}): {item.user_input}
-          {item.detected_language && (
-            <Text style={styles.languageTag}> [{item.detected_language}]</Text>
+      <View style={styles.messageContainer}>
+        <View style={[styles.message, styles.userMessage]}>
+          <Text style={styles.userText}>
+            {item.user_input} ({item.action})
+            {item.detected_language && (
+              <Text style={styles.languageTag}> [{item.detected_language}]</Text>
+            )}
+          </Text>
+        </View>
+        <View style={[styles.message, styles.botMessage]}>
+          <Text style={styles.botText}>{item.response}</Text>
+          {item.audio_path && (
+            <View style={styles.audioContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.audioButton,
+                  isPlaying && styles.playingAudioButton
+                ]}
+                onPress={() => isPlaying ? stopAudio() : handlePlayAudio(item.audio_path, item.id)}
+              >
+                <Feather
+                  name={isPlaying ? "pause" : "play"}
+                  size={16}
+                  color={colors.surface}
+                />
+                <Text style={styles.audioButtonText}>
+                  {isPlaying ? 'Stop Audio' : 'Play Audio'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
-        </Text>
-        <Text style={styles.botText}>Bot: {item.response}</Text>
-        
-        {item.audio_path && (
-          <View style={styles.audioContainer}>
-            <TouchableOpacity 
-              style={[
-                styles.audioButton,
-                isPlaying && styles.playingAudioButton
-              ]} 
-              onPress={() => isPlaying ? stopAudio() : handlePlayAudio(item.audio_path, item.id)}
-            >
-              <Feather 
-                name={isPlaying ? "pause" : "play"} 
-                size={16} 
-                color="#fff" 
-              />
-              <Text style={styles.audioButtonText}>
-                {isPlaying ? 'Stop Audio' : 'Play Audio'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        </View>
       </View>
     );
   };
 
   return (
-    <ScreenWrapper bg="white">
+    <ScreenWrapper bg={colors.background}>
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.heading}>Chatbot</Text>
@@ -707,13 +548,14 @@ const Chatbot = ({ navigation }) => {
             )}
           </View>
         </View>
-        
+
         <FlatList
           data={messages}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id.toString()}
           inverted
           style={styles.chatList}
+          contentContainerStyle={styles.chatListContent}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>No messages yet. Start a conversation!</Text>
@@ -723,7 +565,7 @@ const Chatbot = ({ navigation }) => {
             </View>
           }
         />
-        
+
         <View style={styles.inputContainer}>
           <View style={styles.inputRow}>
             <TextInput
@@ -731,11 +573,9 @@ const Chatbot = ({ navigation }) => {
               value={text}
               onChangeText={setText}
               placeholder="Type your message or use speech-to-text..."
-              placeholderTextColor={theme.colors.text}
+              placeholderTextColor={colors.textSecondary}
               multiline
             />
-            
-            {/* STT Buttons - Record or Select File */}
             {audioAvailable && recordingPermission && (
               <View style={styles.sttButtonsContainer}>
                 <TouchableOpacity
@@ -748,58 +588,55 @@ const Chatbot = ({ navigation }) => {
                   disabled={sttLoading}
                 >
                   {sttLoading ? (
-                    <Feather name="loader" size={20} color="#fff" />
+                    <Feather name="loader" size={20} color={colors.surface} />
                   ) : (
-                    <Feather 
-                      name={isRecording ? "mic-off" : "mic"} 
-                      size={20} 
-                      color="#fff" 
+                    <Feather
+                      name={isRecording ? "mic-off" : "mic"}
+                      size={20}
+                      color={colors.surface}
                     />
                   )}
                 </TouchableOpacity>
-                
                 <TouchableOpacity
                   style={[
                     styles.sttButton,
                     styles.fileButton,
-                    sttLoading && styles.loadingButton
+                    sttLoading && styles.loadingButton,
                   ]}
                   onPress={selectAudioFile}
                   disabled={sttLoading || isRecording}
                 >
-                  <Feather name="upload" size={20} color="#fff" />
+                  <Feather name="upload" size={20} color={colors.surface} />
                 </TouchableOpacity>
               </View>
             )}
-            
-            {/* Fallback for devices without recording capability */}
             {(!audioAvailable || !recordingPermission) && (
               <TouchableOpacity
                 style={[
                   styles.sttButton,
                   styles.fileButton,
-                  sttLoading && styles.loadingButton
+                  sttLoading && styles.loadingButton,
                 ]}
                 onPress={selectAudioFile}
                 disabled={sttLoading}
               >
-                <Feather name="upload" size={20} color="#fff" />
+                <Feather name="upload" size={20} color={colors.surface} />
               </TouchableOpacity>
             )}
           </View>
-          
+
           {isRecording && (
             <View style={styles.recordingIndicator}>
               <Text style={styles.recordingText}>🔴 Recording... Tap mic to stop</Text>
             </View>
           )}
-          
+
           {sttLoading && (
             <View style={styles.recordingIndicator}>
               <Text style={styles.recordingText}>⏳ Processing speech...</Text>
             </View>
           )}
-          
+
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, action === 'translate' && styles.activeButton]}
@@ -807,10 +644,9 @@ const Chatbot = ({ navigation }) => {
             >
               <Text style={styles.actionButtonText}>Translate</Text>
             </TouchableOpacity>
-            
             <TouchableOpacity
               style={[
-                styles.actionButton, 
+                styles.actionButton,
                 action === 'tts' && styles.activeButton,
                 !audioAvailable && styles.disabledButton
               ]}
@@ -826,7 +662,6 @@ const Chatbot = ({ navigation }) => {
                 TTS {!audioAvailable && '🚫'}
               </Text>
             </TouchableOpacity>
-            
             <TouchableOpacity
               style={[styles.actionButton, action === 'grammar' && styles.activeButton]}
               onPress={() => setAction('grammar')}
@@ -834,7 +669,7 @@ const Chatbot = ({ navigation }) => {
               <Text style={styles.actionButtonText}>Grammar</Text>
             </TouchableOpacity>
           </View>
-          
+
           <Button
             title={loading ? 'Sending...' : 'Send'}
             onPress={handleSubmit}
@@ -843,8 +678,7 @@ const Chatbot = ({ navigation }) => {
           />
         </View>
       </View>
-      <NavigationBar/>
-    
+      <NavigationBar />
     </ScreenWrapper>
   );
 };
@@ -852,155 +686,204 @@ const Chatbot = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
+    paddingHorizontal: 20,
+    paddingTop: 24,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
+    backgroundColor: colors.surface,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   heading: {
-    fontSize: 26,
-    fontWeight: theme.fonts.bold,
-    color: theme.colors.text,
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.text,
   },
   statusContainer: {
     alignItems: 'flex-end',
   },
   audioStatus: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   chatList: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  chatListContent: {
+    paddingBottom: 100, // Adjusted for NavigationBar height (~76px + safe area)
+  },
+  messageContainer: {
+    marginVertical: 8,
   },
   message: {
-    marginVertical: 5,
-    padding: 10,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    maxWidth: '70%',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  userMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: colors.primary,
+    borderBottomRightRadius: 4,
+  },
+  botMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    borderBottomLeftRadius: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.secondary,
   },
   userText: {
-    fontWeight: theme.fonts.semibold,
-    color: theme.colors.text,
+    fontSize: 16,
+    color: colors.surface,
+    fontWeight: '500',
   },
   languageTag: {
     fontSize: 12,
-    color: '#666',
-    fontWeight: 'normal',
+    color: colors.surface,
+    opacity: 0.7,
+    fontWeight: '400',
   },
   botText: {
-    marginTop: 5,
-    color: theme.colors.text,
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '400',
   },
   audioContainer: {
-    marginTop: 10,
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   audioButton: {
-    backgroundColor: theme.colors.primaryDark,
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 5,
-    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
   },
   playingAudioButton: {
-    backgroundColor: '#e74c3c', // Red color when playing
+    backgroundColor: colors.danger,
   },
   audioButtonText: {
-    color: '#fff',
-    fontWeight: theme.fonts.semibold,
-    marginLeft: 5,
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '600',
   },
   inputContainer: {
-    padding: 10,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
+    padding: 16,
     borderTopWidth: 1,
-    borderColor: theme.colors.border,
+    borderTopColor: colors.border,
+    borderRadius: 12,
+    marginTop: 12,
+    marginBottom: 16, // Additional margin to clear NavigationBar
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 10,
-    borderRadius: 8,
+    borderColor: colors.border,
+    padding: 12,
+    borderRadius: 10,
     fontSize: 16,
-    color: theme.colors.text,
-    minHeight: 40,
-    maxHeight: 100,
-    marginRight: 10,
+    color: colors.text,
+    backgroundColor: colors.background,
+    minHeight: 48,
+    maxHeight: 120,
+    marginRight: 12,
   },
   sttButtonsContainer: {
     flexDirection: 'row',
     gap: 8,
   },
   sttButton: {
-    backgroundColor: theme.colors.primary,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    backgroundColor: colors.primary,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
   fileButton: {
-    backgroundColor: '#27ae60', // Green color for file upload
+    backgroundColor: colors.success,
   },
   recordingButton: {
-    backgroundColor: '#e74c3c', // Red when recording
+    backgroundColor: colors.danger,
   },
   loadingButton: {
-    backgroundColor: '#95a5a6', // Gray when loading
+    backgroundColor: colors.textSecondary,
   },
   recordingIndicator: {
-    backgroundColor: '#ffebee',
+    backgroundColor: colors.danger + '10',
     padding: 8,
-    borderRadius: 5,
-    marginBottom: 10,
+    borderRadius: 8,
+    marginBottom: 12,
     alignItems: 'center',
   },
   recordingText: {
-    color: '#d32f2f',
+    color: colors.danger,
     fontSize: 14,
-    fontWeight: theme.fonts.semibold,
+    fontWeight: '600',
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
+    gap: 8,
   },
   actionButton: {
     flex: 1,
-    padding: 10,
-    backgroundColor: '#ddd',
-    borderRadius: 8,
+    paddingVertical: 12,
+    backgroundColor: colors.border,
+    borderRadius: 10,
     alignItems: 'center',
-    marginHorizontal: 5,
   },
   activeButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: colors.primary,
   },
   disabledButton: {
-    backgroundColor: '#ccc',
+    backgroundColor: colors.textSecondary,
     opacity: 0.6,
   },
   actionButtonText: {
-    color: '#fff',
-    fontWeight: theme.fonts.semibold,
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '600',
   },
   sendButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 14,
   },
   emptyState: {
     flex: 1,
@@ -1010,13 +893,13 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: theme.colors.textLight || '#888',
+    color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   userIdText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
 });

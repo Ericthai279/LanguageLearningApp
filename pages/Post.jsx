@@ -1,9 +1,25 @@
 import axios from "axios";
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, Button, ScrollView, StyleSheet, Alert, TouchableOpacity } from "react-native";
+import { View, Text, Image, ScrollView, StyleSheet, Alert, TouchableOpacity, SafeAreaView, StatusBar } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import ScreenWrapper from "../components/screenwraper";
-import { NavigationBar } from '../components/NavigationBar';
+import { NavigationBar } from "../components/NavigationBar";
+import Feather from '@expo/vector-icons/Feather';
+
+// Define colors for consistent theming (same as App.jsx)
+const colors = {
+  primary: '#007AFF',
+  secondary: '#5856D6',
+  success: '#34C759',
+  warning: '#FF9500',
+  danger: '#FF3B30',
+  background: '#F2F2F7',
+  surface: '#FFFFFF',
+  text: '#1C1C1E',
+  textSecondary: '#8E8E93',
+  border: '#C6C6C8',
+};
+
 const Posts = () => {
   const [posts, setPosts] = useState([]);
   const navigation = useNavigation();
@@ -15,7 +31,8 @@ const Posts = () => {
         const res = await axios.get(`${API_BASE_URL}/posts`);
         setPosts(res.data);
       } catch (err) {
-        console.log(err);
+        console.error('Error fetching posts:', err);
+        Alert.alert('Error', 'Failed to load posts. Please try again.');
       }
     };
     fetchAllPosts();
@@ -26,12 +43,15 @@ const Posts = () => {
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
+        style: "destructive",
         onPress: async () => {
           try {
             await axios.delete(`${API_BASE_URL}/posts/${id}`);
             setPosts(posts.filter((post) => post.id !== id));
+            Alert.alert('Success', 'Post deleted successfully.');
           } catch (err) {
-            console.log(err);
+            console.error('Error deleting post:', err);
+            Alert.alert('Error', 'Failed to delete post. Please try again.');
           }
         },
       },
@@ -39,94 +59,206 @@ const Posts = () => {
   };
 
   return (
-    <ScreenWrapper>
-    <ScrollView style={styles.container}>
-      <Text style={styles.heading}>All Posts</Text>
-      {posts.map((post) => (
-        <View key={post.id} style={styles.post}>
-          {post.media_url && <Image source={{ uri: post.media_url }} style={styles.image} />}
-          <Text style={styles.title}>{post.title}</Text>
-          <Text style={styles.description}>{post.description}</Text>
-          <Text style={styles.user}>By User {post.user_id}</Text>
-          <View style={styles.buttonContainer}>
-            <Button title="Delete" color="red" onPress={() => handleDelete(post.id)} />
-            <TouchableOpacity onPress={() => navigation.navigate("UpdatePost", { postId: post.id })} style={styles.updateButton}>
-              <Text style={styles.updateText}>Update</Text>
-            </TouchableOpacity>
+    <ScreenWrapper bg={colors.background}>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Header Section */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>All Posts</Text>
+            <Text style={styles.headerSubtitle}>Browse community content</Text>
           </View>
-        </View>
-      ))}
-      <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate("AddPost")}>
-        <Text style={styles.addButtonText}>Add New Post</Text>
-      </TouchableOpacity>
-    </ScrollView>
-        <NavigationBar/>
-        </ScreenWrapper>
+
+          {/* Posts List */}
+          <View style={styles.postsContainer}>
+            {posts.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Feather name="file-text" size={48} color={colors.textSecondary} />
+                <Text style={styles.emptyStateText}>No posts yet.</Text>
+                <Text style={styles.emptyStateSubText}>Be the first to share something!</Text>
+              </View>
+            ) : (
+              posts.map((post) => (
+                <View key={post.id} style={styles.postCard}>
+                  {post.media_url && (
+                    <Image source={{ uri: post.media_url }} style={styles.postImage} />
+                  )}
+                  <View style={styles.postContent}>
+                    <Text style={styles.postTitle}>{post.title}</Text>
+                    <Text style={styles.postDescription}>{post.description}</Text>
+                    <Text style={styles.postUser}>By User {post.user_id}</Text>
+                    <View style={styles.buttonContainer}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.deleteButton]}
+                        onPress={() => handleDelete(post.id)}
+                        activeOpacity={0.8}
+                      >
+                        <Feather name="trash-2" size={16} color={colors.surface} />
+                        <Text style={styles.actionButtonText}>Delete</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.updateButton]}
+                        onPress={() => navigation.navigate("UpdatePost", { postId: post.id })}
+                        activeOpacity={0.8}
+                      >
+                        <Feather name="edit-3" size={16} color={colors.surface} />
+                        <Text style={styles.actionButtonText}>Update</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+
+          {/* Add New Post Button */}
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate("AddPost")}
+            activeOpacity={0.8}
+          >
+            <Feather name="plus-circle" size={20} color={colors.surface} />
+            <Text style={styles.addButtonText}>Add New Post</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+      <NavigationBar />
+    </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
   },
-  heading: {
-    fontSize: 24,
-    fontWeight: "bold",
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  header: {
+    backgroundColor: colors.surface,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     marginBottom: 20,
-    textAlign: "center",
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  post: {
-    backgroundColor: "#f9f9f9",
-    padding: 15,
-    marginBottom: 15,
-    borderRadius: 8,
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 4,
   },
-  image: {
-    width: "100%",
+  headerSubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  postsContainer: {
+    gap: 12,
+    paddingBottom: 100, // Ensure content clears NavigationBar
+  },
+  postCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  postImage: {
+    width: '100%',
     height: 200,
-    resizeMode: "cover",
-    borderRadius: 8,
+    resizeMode: 'cover',
   },
-  title: {
+  postContent: {
+    padding: 16,
+  },
+  postTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 10,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
   },
-  description: {
+  postDescription: {
     fontSize: 14,
-    marginVertical: 5,
+    color: colors.text,
+    marginBottom: 8,
   },
-  user: {
+  postUser: {
     fontSize: 12,
-    color: "gray",
+    color: colors.textSecondary,
+    marginBottom: 12,
   },
   buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 10,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  deleteButton: {
+    backgroundColor: colors.danger,
   },
   updateButton: {
-    backgroundColor: "blue",
-    padding: 10,
-    borderRadius: 5,
+    backgroundColor: colors.warning,
   },
-  updateText: {
-    color: "white",
-    fontWeight: "bold",
+  actionButtonText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '600',
   },
   addButton: {
-    backgroundColor: "green",
-    padding: 15,
-    alignItems: "center",
-    borderRadius: 8,
-    marginTop: 20,
+    flexDirection: 'row',
+    backgroundColor: colors.success,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 5,
+    gap: 8,
   },
   addButtonText: {
-    color: "white",
+    color: colors.surface,
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateSubText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });
 
