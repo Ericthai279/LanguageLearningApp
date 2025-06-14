@@ -2,11 +2,12 @@ import axios from "axios";
 import React, { useEffect, useState } from "react";
 import { View, Text, Image, Button, ScrollView, StyleSheet, Alert, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-
+import ScreenWrapper from "../components/screenwraper";
+import { NavigationBar } from '../components/NavigationBar';
 const Posts = () => {
   const [posts, setPosts] = useState([]);
   const navigation = useNavigation();
-  const API_BASE_URL = "http://10.25.33.116:8000";
+  const API_BASE_URL = "http://10.25.33.16:8000";
 
   useEffect(() => {
     const fetchAllPosts = async () => {
@@ -38,6 +39,7 @@ const Posts = () => {
   };
 
   return (
+    <ScreenWrapper>
     <ScrollView style={styles.container}>
       <Text style={styles.heading}>All Posts</Text>
       {posts.map((post) => (
@@ -58,6 +60,8 @@ const Posts = () => {
         <Text style={styles.addButtonText}>Add New Post</Text>
       </TouchableOpacity>
     </ScrollView>
+        <NavigationBar/>
+        </ScreenWrapper>
   );
 };
 

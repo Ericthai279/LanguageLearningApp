@@ -7,9 +7,9 @@ import ScreenWrapper from '../components/screenwraper';
 import { theme } from '../constrants/theme';
 import Button from '../components/Button';
 import Feather from '@expo/vector-icons/Feather';
-
+import { NavigationBar } from '../components/NavigationBar';
 // API URL for FastAPI backend - updated to match your backend
-const API_URL = 'http://10.25.33.116:8000';
+const API_URL = 'http://10.25.33.16:8000';
 
 const Chatbot = ({ navigation }) => {
   const [text, setText] = useState('');
@@ -843,6 +843,8 @@ const Chatbot = ({ navigation }) => {
           />
         </View>
       </View>
+      <NavigationBar/>
+    
     </ScreenWrapper>
   );
 };

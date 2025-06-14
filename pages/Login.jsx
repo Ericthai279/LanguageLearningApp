@@ -10,8 +10,8 @@ import Button from '../components/Button';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-
-const API_URL = 'http://10.25.33.116:8000'; // FastAPI backend URL
+import { NavigationBar } from '../components/NavigationBar';
+const API_URL = 'http://10.25.33.16:8000'; // FastAPI backend URL
 
 const Login = () => {
   const emailRef = useRef('');
@@ -137,7 +137,8 @@ const Login = () => {
             </Pressable>
           </View>
         </View>
-      </ScreenWrapper>
+        <NavigationBar/>
+    </ScreenWrapper>
     </GestureHandlerRootView>
   );
 };

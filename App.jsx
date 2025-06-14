@@ -13,7 +13,8 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Feather from '@expo/vector-icons/Feather';
-
+import ScreenWrapper from "./components/screenwraper.jsx";
+import { NavigationBar } from "./components/NavigationBar.jsx";
 // Import your pages
 import WelcomeScreen from "./pages/Welcome.jsx";
 import AddPost from "./pages/Add.jsx";
@@ -22,6 +23,7 @@ import UpdatePost from "./pages/Update.jsx";
 import Login from "./pages/Login.jsx";
 import SignUp from "./pages/SignUp.jsx";
 import Chatbot from "./pages/Chatbot.jsx";
+import ProfileScreen from "./pages/ProfileScreen.jsx";
 
 const Stack = createNativeStackNavigator();
 
@@ -134,7 +136,8 @@ const HomeScreen = ({ navigation }) => {
       color: colors.warning,
       screen: 'UpdatePost',
       requiresAuth: true
-    }
+    },
+
   ];
 
   const authActions = [
@@ -165,6 +168,7 @@ const HomeScreen = ({ navigation }) => {
   }
 
   return (
+    <ScreenWrapper>
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
@@ -218,6 +222,7 @@ const HomeScreen = ({ navigation }) => {
             ))}
           </View>
         </View>
+        
 
         {/* Authentication Section (only show if not logged in) */}
         {!user && (
@@ -268,6 +273,8 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </ScrollView>
     </SafeAreaView>
+    <NavigationBar/>
+    </ScreenWrapper>
   );
 };
 
@@ -293,37 +300,43 @@ export default function App() {
         <Stack.Screen 
           name="Posts" 
           component={Posts}
-          options={{ title: 'Community Posts' }}
+          options={{ headerShown: false }}  
         />
         <Stack.Screen 
           name="AddPost" 
           component={AddPost}
-          options={{ title: 'Create New Post' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen 
           name="UpdatePost" 
           component={UpdatePost}
-          options={{ title: 'Edit Post' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen 
           name="WelcomeScreen" 
           component={WelcomeScreen}
-          options={{ title: 'Welcome' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen 
           name="Login" 
           component={Login}
-          options={{ title: 'Sign In' }}
+          // options={{ title: 'Sign In' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen 
           name="SignUp" 
           component={SignUp}
-          options={{ title: 'Create Account' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen 
           name="ChatBot" 
           component={Chatbot}
-          options={{ title: 'AI Assistant' }}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="ProfileScreen" 
+          component={ProfileScreen}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>

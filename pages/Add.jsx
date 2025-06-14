@@ -13,9 +13,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import Feather from '@expo/vector-icons/Feather';
-
+import { NavigationBar } from '../components/NavigationBar';
+import ScreenWrapper from '../components/screenwraper';
 // API URL - update this to match your backend
-const API_URL = 'http://10.25.33.116:8000';
+const API_URL = 'http://10.25.33.16:8000';
 
 // Define colors for consistent theming
 const colors = {
@@ -39,7 +40,7 @@ const AddPost = () => {
   const [userLoading, setUserLoading] = useState(true);
 
   const navigation = useNavigation();
-  const API_BASE_URL = 'http://10.25.33.116:8000';
+  const API_BASE_URL = 'http://10.25.33.16:8000';
 
   // Get user data when component mounts
   useEffect(() => {
@@ -239,6 +240,7 @@ const AddPost = () => {
   }
 
   return (
+      <ScreenWrapper>
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.content}>
         {/* User Info Section */}
@@ -337,7 +339,10 @@ const AddPost = () => {
           </TouchableOpacity>
         </View>
       </View>
+      
     </ScrollView>
+    <NavigationBar/>
+    </ScreenWrapper>
   );
 };
 

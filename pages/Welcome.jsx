@@ -4,7 +4,7 @@ import ScreenWrapper from "../components/screenwraper";
 import { StatusBar } from "expo-status-bar";
 import { theme } from "../constrants/theme";
 import Button from "../components/Button";
-
+import { NavigationBar } from '../components/NavigationBar';
 const WelcomeScreen = () => {
   return (
     <ScreenWrapper bg="white">
@@ -44,6 +44,7 @@ const WelcomeScreen = () => {
           </Pressable>
         </View>
       </View>
+      <NavigationBar/>
     </ScreenWrapper>
   );
 };

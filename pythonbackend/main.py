@@ -505,7 +505,52 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
-
+@app.put("/users/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: int,
+    bio: Optional[str] = Form(None),
+    document: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this user")
+    
+    profile_picture = user.profile_picture
+    if document:
+        file_extension = os.path.splitext(document.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = UPLOAD_DIR / unique_filename
+        
+        try:
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(document.file, buffer)
+            
+            if user.profile_picture:
+                old_file_path = UPLOAD_DIR / os.path.basename(user.profile_picture)
+                if os.path.exists(old_file_path):
+                    os.remove(old_file_path)
+            
+            profile_picture = f"/uploads/{unique_filename}"
+        except Exception as e:
+            logger.error(f"File upload error: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error uploading file")
+        finally:
+            document.file.close()
+    
+    if bio is not None:
+        user.bio = bio
+    if profile_picture:
+        user.profile_picture = profile_picture
+    
+    db.commit()
+    db.refresh(user)
+    
+    return user
 # Post endpoints
 @app.get("/posts", response_model=List[PostResponse])
 def get_posts(db: Session = Depends(get_db)):

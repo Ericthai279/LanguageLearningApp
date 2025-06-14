@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import ScreenWrapper from "../components/screenwraper";
+import { NavigationBar } from "../components/NavigationBar";
 
 const UpdatePost = () => {
   const [post, setPost] = useState({
@@ -15,7 +17,7 @@ const UpdatePost = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const postId = route.params?.postId;
-  const API_BASE_URL = "http://10.25.33.116:8000";
+  const API_BASE_URL = "http://10.25.33.16:8000";
 
   // Fetch the current post data when component mounts
   useEffect(() => {
@@ -125,6 +127,7 @@ const UpdatePost = () => {
   }
 
   return (
+    <ScreenWrapper>
     <View style={styles.container}>
       <Text style={styles.heading}>Update Post</Text>
       <TextInput
@@ -152,6 +155,8 @@ const UpdatePost = () => {
         disabled={isSubmitting}
       />
     </View>
+    <NavigationBar/>
+    </ScreenWrapper>
   );
 };
 
