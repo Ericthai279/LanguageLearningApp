@@ -18,7 +18,16 @@
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone.",
           "recordAudioAndroid": true
         }
-      ]
+      ],
+      "expo-build-properties",
+      {
+        "android": {
+          "compileSdkVersion": 34,
+          "targetSdkVersion": 34,
+          "buildToolsVersion": "34.0.0",
+          "kotlinVersion": "1.9.10"
+        }
+      }
     ],
     "ios": {
       "supportsTablet": true,
@@ -30,13 +39,12 @@
       }
     },
     "android": {
-      "package": "com.yourcompany.sampleapp",
+      "package": "com.thaihoangphuc.languagelearningapp",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "AUDIO_RECORDING",
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
