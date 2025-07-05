@@ -1,4 +1,4 @@
-package com.yourcompany.sampleapp
+package com.thaihoangphuc.languagelearningapp
 
 import android.app.Application
 import android.content.res.Configuration

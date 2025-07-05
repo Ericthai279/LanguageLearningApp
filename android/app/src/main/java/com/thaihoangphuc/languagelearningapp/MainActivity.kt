@@ -1,4 +1,4 @@
-package com.yourcompany.sampleapp
+package com.thaihoangphuc.languagelearningapp
 
 import android.os.Build
 import android.os.Bundle
