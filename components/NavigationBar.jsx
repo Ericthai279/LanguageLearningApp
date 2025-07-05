@@ -24,40 +24,15 @@ const NavigationBar = ({ style, position = 'bottom' }) => {
   }, []);
 
   const navigationItems = [
-    {
-      name: 'Home',
-      icon: 'home',
-      label: 'Home',
-      screen: 'Home'
-    },
-    {
-      name: 'Posts',
-      icon: 'book',
-      label: 'Posts',
-      screen: 'Posts'
-    },
-    {
-      name: 'AddPost',
-      icon: 'plus-circle',
-      label: 'Add Post',
-      screen: 'AddPost'
-    },
-    {
-      name: 'ChatBot',
-      icon: 'message-circle',
-      label: 'AI Chat',
-      screen: 'ChatBot'
-    },
-    {
-      name: 'Profile',
-      icon: 'user',
-      label: 'Profile',
-      screen: isAuthenticated ? 'ProfileScreen' : 'Login'
-    }
+    { name: 'Home', icon: 'home', label: 'Home', screen: 'Home' },
+    { name: 'Posts', icon: 'book', label: 'Posts', screen: 'Posts' },
+    { name: 'AddPost', icon: 'plus-circle', label: 'Add Post', screen: 'AddPost' },
+    { name: 'ChatBot', icon: 'message-circle', label: 'AI Chat', screen: 'ChatBot' },
+    { name: 'Profile', icon: 'user', label: 'Profile', screen: isAuthenticated ? 'ProfileScreen' : 'Login' },
   ];
 
   const isActive = (screenName) => {
-    return route.name === screenName || 
+    return route.name === screenName ||
            (route.name === 'PostsList' && screenName === 'Posts') ||
            (route.name === 'ChatBot' && screenName === 'ChatBot') ||
            (route.name === 'ProfileScreen' && screenName === 'ProfileScreen' && isAuthenticated) ||
@@ -72,33 +47,25 @@ const NavigationBar = ({ style, position = 'bottom' }) => {
     }
   };
 
-  const containerStyle = position === 'top' 
-    ? styles.topContainer 
-    : [styles.bottomContainer, { paddingBottom: bottom > 0 ? bottom : 10 }];
+  const containerStyle = position === 'top'
+    ? styles.topContainer
+    : [styles.bottomContainer, { paddingBottom: bottom > 0 ? bottom : 8 }];
 
   return (
     <View style={[containerStyle, style]}>
       {navigationItems.map((item) => (
         <TouchableOpacity
           key={item.name}
-          style={[
-            styles.navItem,
-            isActive(item.screen) && styles.activeNavItem
-          ]}
+          style={[styles.navItem, isActive(item.screen) && styles.activeNavItem]}
           onPress={() => handleNavigation(item.screen)}
           activeOpacity={0.7}
         >
           <Feather
             name={item.icon}
-            size={24}
+            size={20}
             color={isActive(item.screen) ? '#007bff' : '#666'}
           />
-          <Text
-            style={[
-              styles.navLabel,
-              isActive(item.screen) && styles.activeNavLabel
-            ]}
-          >
+          <Text style={[styles.navLabel, isActive(item.screen) && styles.activeNavLabel]}>
             {item.label}
           </Text>
         </TouchableOpacity>
@@ -107,7 +74,6 @@ const NavigationBar = ({ style, position = 'bottom' }) => {
   );
 };
 
-// Horizontal Navigation Bar (for top placement)
 const HorizontalNavigationBar = ({ style }) => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -130,11 +96,11 @@ const HorizontalNavigationBar = ({ style }) => {
     { name: 'Posts', icon: 'book', screen: 'Posts' },
     { name: 'Add', icon: 'plus', screen: 'AddPost' },
     { name: 'Chat', icon: 'message-circle', screen: 'ChatBot' },
-    { name: 'Profile', icon: 'user', screen: isAuthenticated ? 'ProfileScreen' : 'Login' }
+    { name: 'Profile', icon: 'user', screen: isAuthenticated ? 'ProfileScreen' : 'Login' },
   ];
 
   const isActive = (screenName) => {
-    return route.name === screenName || 
+    return route.name === screenName ||
            (route.name === 'PostsList' && screenName === 'Posts') ||
            (route.name === 'ChatBot' && screenName === 'ChatBot') ||
            (route.name === 'ProfileScreen' && screenName === 'ProfileScreen' && isAuthenticated) ||
@@ -154,24 +120,16 @@ const HorizontalNavigationBar = ({ style }) => {
       {navigationItems.map((item) => (
         <TouchableOpacity
           key={item.name}
-          style={[
-            styles.horizontalNavItem,
-            isActive(item.screen) && styles.activeHorizontalNavItem
-          ]}
+          style={[styles.horizontalNavItem, isActive(item.screen) && styles.activeHorizontalNavItem]}
           onPress={() => handleNavigation(item.screen)}
           activeOpacity={0.7}
         >
           <Feather
             name={item.icon}
-            size={20}
+            size={18}
             color={isActive(item.screen) ? '#007bff' : '#666'}
           />
-          <Text
-            style={[
-              styles.horizontalNavLabel,
-              isActive(item.screen) && styles.activeHorizontalNavLabel
-            ]}
-          >
+          <Text style={[styles.horizontalNavLabel, isActive(item.screen) && styles.activeHorizontalNavLabel]}>
             {item.name}
           </Text>
         </TouchableOpacity>
@@ -180,24 +138,19 @@ const HorizontalNavigationBar = ({ style }) => {
   );
 };
 
-// Floating Action Button Navigation
 const FloatingNavigationBar = ({ style }) => {
   const navigation = useNavigation();
   const { bottom } = useSafeAreaInsets();
-  
+
   const quickActions = [
     { icon: 'home', screen: 'Home', color: '#6c757d' },
     { icon: 'book', screen: 'Posts', color: '#6c757d' },
     { icon: 'plus', screen: 'AddPost', color: '#28a745' },
-    { icon: 'message-circle', screen: 'ChatBot', color: '#007bff' }
+    { icon: 'message-circle', screen: 'ChatBot', color: '#007bff' },
   ];
 
   return (
-    <View style={[
-      styles.floatingContainer, 
-      { bottom: bottom > 0 ? bottom + 20 : 20 },
-      style
-    ]}>
+    <View style={[styles.floatingContainer, { bottom: bottom > 0 ? bottom + 15 : 15 }, style]}>
       {quickActions.map((action, index) => (
         <TouchableOpacity
           key={index}
@@ -205,59 +158,23 @@ const FloatingNavigationBar = ({ style }) => {
           onPress={() => navigation.navigate(action.screen)}
           activeOpacity={0.8}
         >
-          <Feather name={action.icon} size={24} color="white" />
+          <Feather name={action.icon} size={20} color="white" />
         </TouchableOpacity>
       ))}
     </View>
   );
 };
 
-// Updated PageWrapper that works with your ScreenWrapper
-const PageWrapper = ({ 
-  children, 
-  showNavigation = true, 
-  navigationStyle = 'bottom',
-  backgroundColor = 'white',
-  style 
-}) => {
-  const renderNavigation = () => {
-    if (!showNavigation) return null;
-
-    switch (navigationStyle) {
-      case 'top':
-        return <HorizontalNavigationBar style={styles.topNav} />;
-      case 'floating':
-        return <FloatingNavigationBar />;
-      case 'both':
-        return (
-          <>
-            <HorizontalNavigationBar style={styles.topNav} />
-            <NavigationBar />
-          </>
-        );
-      case 'bottom':
-      default:
-        return <NavigationBar />;
-    }
-  };
-
+const PageWrapper = ({ children, showNavigation = true, navigationStyle = 'bottom', backgroundColor = 'white', style }) => {
   return (
     <ScreenWrapper bg={backgroundColor}>
       <View style={[styles.pageContainer, style]}>
         {navigationStyle === 'top' || navigationStyle === 'both' ? (
           <HorizontalNavigationBar style={styles.topNav} />
         ) : null}
-        
-        <View style={[
-          styles.content,
-          { 
-            paddingBottom: (navigationStyle === 'bottom' || navigationStyle === 'both') ? 90 : 20,
-            flex: 1
-          }
-        ]}>
+        <View style={[styles.content, { paddingBottom: (navigationStyle === 'bottom' || navigationStyle === 'both') ? 70 : 15 }]}>
           {children}
         </View>
-        
         {(navigationStyle === 'bottom' || navigationStyle === 'both') && <NavigationBar />}
         {navigationStyle === 'floating' && <FloatingNavigationBar />}
       </View>
@@ -269,8 +186,6 @@ const styles = StyleSheet.create({
   pageContainer: {
     flex: 1,
   },
-  
-  // Bottom Navigation Styles
   bottomContainer: {
     position: 'absolute',
     bottom: 0,
@@ -280,134 +195,104 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
-    paddingVertical: 10,
+    paddingVertical: 6,
     paddingHorizontal: 5,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
+    shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  
-  // Top Navigation Styles
   topContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-    paddingVertical: 10,
+    paddingVertical: 6,
     paddingHorizontal: 5,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  
   navItem: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 4,
-    borderRadius: 8,
+    borderRadius: 6,
   },
-  
   activeNavItem: {
     backgroundColor: '#f0f8ff',
   },
-  
   navLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#666',
-    marginTop: 4,
+    marginTop: 3,
     fontWeight: '500',
   },
-  
   activeNavLabel: {
     color: '#007bff',
     fontWeight: '600',
   },
-
-  // Horizontal Navigation Styles
   horizontalContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
-    borderRadius: 25,
+    borderRadius: 20,
     marginHorizontal: 20,
-    marginVertical: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    marginVertical: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  
   horizontalNavItem: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 16,
   },
-  
   activeHorizontalNavItem: {
     backgroundColor: '#f0f8ff',
   },
-  
   horizontalNavLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
-    marginLeft: 6,
+    marginLeft: 5,
     fontWeight: '500',
   },
-  
   activeHorizontalNavLabel: {
     color: '#007bff',
     fontWeight: '600',
   },
-
-  // Floating Navigation Styles
   floatingContainer: {
     position: 'absolute',
-    right: 20,
+    right: 15,
     alignItems: 'center',
   },
-  
   floatingButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 3,
+    elevation: 4,
   },
-
-  // PageWrapper styles
   topNav: {
     marginTop: 0,
   },
-  
   content: {
     flex: 1,
   },

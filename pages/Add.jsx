@@ -16,7 +16,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { NavigationBar } from '../components/NavigationBar';
 import ScreenWrapper from '../components/screenwraper';
 // API URL - update this to match your backend
-const API_URL = 'http://10.25.33.16:8000';
+const API_URL = 'http://192.168.204.119:8000';
 
 // Define colors for consistent theming
 const colors = {
@@ -40,7 +40,7 @@ const AddPost = () => {
   const [userLoading, setUserLoading] = useState(true);
 
   const navigation = useNavigation();
-  const API_BASE_URL = 'http://10.25.33.16:8000';
+  const API_BASE_URL = 'http://192.168.204.119:8000';
 
   // Get user data when component mounts
   useEffect(() => {

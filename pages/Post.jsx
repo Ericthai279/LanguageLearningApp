@@ -23,7 +23,7 @@ const colors = {
 const Posts = () => {
   const [posts, setPosts] = useState([]);
   const navigation = useNavigation();
-  const API_BASE_URL = "http://10.25.33.16:8000";
+  const API_BASE_URL = "http://192.168.204.119:8000";
 
   useEffect(() => {
     const fetchAllPosts = async () => {

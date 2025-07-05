@@ -10,7 +10,7 @@ import Button from '../components/Button';
 import axios from 'axios';
 import { NavigationBar } from '../components/NavigationBar';
 // Base URL for API calls - updated for FastAPI backend
-const API_URL = 'http://10.25.33.16:8000'; // Updated port to FastAPI backend
+const API_URL = 'http://192.168.204.119:8000'; // Updated port to FastAPI backend
 
 const SignUp = ({ navigation }) => {
   const emailRef = useRef("");

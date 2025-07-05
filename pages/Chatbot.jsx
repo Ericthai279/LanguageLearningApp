@@ -8,7 +8,7 @@ import Button from '../components/Button';
 import Feather from '@expo/vector-icons/Feather';
 import { NavigationBar } from '../components/NavigationBar';
 
-const API_URL = 'http://10.25.33.16:8000';
+const API_URL = 'http://192.168.204.119:8000';
 
 const colors = {
   primary: '#007AFF',
