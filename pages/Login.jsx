@@ -1,7 +1,7 @@
-import { StyleSheet, Text, View, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Alert, Pressable } from 'react-native';
 import React, { useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView, Pressable } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ScreenWrapper from '../components/screenwraper';
 import { theme } from '../constrants/theme';
 import Input from '../components/Input';
@@ -11,9 +11,9 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationBar } from '../components/NavigationBar';
-const API_URL = 'http://192.168.204.119:8000'; // FastAPI backend URL
 
 const Login = () => {
+  const API_URL = 'https://71ec2670fcfe.ngrok-free.app'; // FastAPI backend URL
   const emailRef = useRef('');
   const passwordRef = useRef('');
   const [loading, setLoading] = useState(false);

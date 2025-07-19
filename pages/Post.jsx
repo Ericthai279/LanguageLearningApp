@@ -23,7 +23,7 @@ const colors = {
 const Posts = () => {
   const [posts, setPosts] = useState([]);
   const navigation = useNavigation();
-  const API_BASE_URL = "http://192.168.204.119:8000";
+  const API_BASE_URL = "https://71ec2670fcfe.ngrok-free.app";
 
   useEffect(() => {
     const fetchAllPosts = async () => {

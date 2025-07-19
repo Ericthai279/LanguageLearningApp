@@ -1,7 +1,7 @@
-import { StyleSheet, Text, View, Alert } from 'react-native';
+import { StyleSheet, Text, View, Alert, Pressable } from 'react-native';
 import React, { useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView, Pressable } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ScreenWrapper from '../components/screenwraper';
 import { theme } from '../constrants/theme';
 import Input from '../components/Input';
@@ -10,7 +10,7 @@ import Button from '../components/Button';
 import axios from 'axios';
 import { NavigationBar } from '../components/NavigationBar';
 // Base URL for API calls - updated for FastAPI backend
-const API_URL = 'http://192.168.204.119:8000'; // Updated port to FastAPI backend
+const API_URL = 'https://71ec2670fcfe.ngrok-free.app'; // Updated port to FastAPI backend
 
 const SignUp = ({ navigation }) => {
   const emailRef = useRef("");

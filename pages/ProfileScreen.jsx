@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 // API base URL (match your Login page)
-const API_URL = 'http://192.168.204.119:8000';
+const API_URL = 'https://71ec2670fcfe.ngrok-free.app';
 
 const ProfileScreen = () => {
   const [user, setUser] = useState(null);
