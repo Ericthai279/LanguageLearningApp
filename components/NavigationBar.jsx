@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,8 @@ const NavigationBar = ({ style, position = 'bottom' }) => {
   const route = useRoute();
   const { bottom } = useSafeAreaInsets();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const slideAnim = useState(new Animated.Value(100))[0];
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -22,6 +24,14 @@ const NavigationBar = ({ style, position = 'bottom' }) => {
     };
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: isVisible ? 0 : 100,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [isVisible]);
 
   const navigationItems = [
     { name: 'Home', icon: 'home', label: 'Home', screen: 'Home' },
@@ -42,9 +52,14 @@ const NavigationBar = ({ style, position = 'bottom' }) => {
   const handleNavigation = (screenName) => {
     try {
       navigation.navigate(screenName);
+      setIsVisible(false); // Close navbar after navigation
     } catch (error) {
       console.error('Navigation error:', error);
     }
+  };
+
+  const toggleNavBar = () => {
+    setIsVisible(!isVisible);
   };
 
   const containerStyle = position === 'top'
@@ -52,25 +67,30 @@ const NavigationBar = ({ style, position = 'bottom' }) => {
     : [styles.bottomContainer, { paddingBottom: bottom > 0 ? bottom : 8 }];
 
   return (
-    <View style={[containerStyle, style]}>
-      {navigationItems.map((item) => (
-        <TouchableOpacity
-          key={item.name}
-          style={[styles.navItem, isActive(item.screen) && styles.activeNavItem]}
-          onPress={() => handleNavigation(item.screen)}
-          activeOpacity={0.7}
-        >
-          <Feather
-            name={item.icon}
-            size={20}
-            color={isActive(item.screen) ? '#007bff' : '#666'}
-          />
-          <Text style={[styles.navLabel, isActive(item.screen) && styles.activeNavLabel]}>
-            {item.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
+    <>
+      <TouchableOpacity style={styles.toggleButton} onPress={toggleNavBar}>
+        <Feather name={isVisible ? 'chevron-down' : 'chevron-up'} size={24} color="#007bff" />
+      </TouchableOpacity>
+      <Animated.View style={[containerStyle, style, { transform: [{ translateY: slideAnim }], opacity: isVisible ? 1 : 0 }]}>
+        {navigationItems.map((item) => (
+          <TouchableOpacity
+            key={item.name}
+            style={[styles.navItem, isActive(item.screen) && styles.activeNavItem]}
+            onPress={() => handleNavigation(item.screen)}
+            activeOpacity={0.7}
+          >
+            <Feather
+              name={item.icon}
+              size={20}
+              color={isActive(item.screen) ? '#007bff' : '#666'}
+            />
+            <Text style={[styles.navLabel, isActive(item.screen) && styles.activeNavLabel]}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </Animated.View>
+    </>
   );
 };
 
@@ -172,7 +192,7 @@ const PageWrapper = ({ children, showNavigation = true, navigationStyle = 'botto
         {navigationStyle === 'top' || navigationStyle === 'both' ? (
           <HorizontalNavigationBar style={styles.topNav} />
         ) : null}
-        <View style={[styles.content, { paddingBottom: (navigationStyle === 'bottom' || navigationStyle === 'both') ? 70 : 15 }]}>
+        <View style={[styles.content, { paddingBottom: (navigationStyle === 'bottom' || navigationStyle === 'both') ? 50 : 15 }]}>
           {children}
         </View>
         {(navigationStyle === 'bottom' || navigationStyle === 'both') && <NavigationBar />}
@@ -295,6 +315,23 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  toggleButton: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+    zIndex: 1000,
   },
 });
 

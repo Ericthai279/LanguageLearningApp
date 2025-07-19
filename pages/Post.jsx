@@ -1,12 +1,17 @@
 import axios from "axios";
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, ScrollView, StyleSheet, Alert, TouchableOpacity, SafeAreaView, StatusBar } from "react-native";
+import { View, Text, Image, ScrollView, StyleSheet, Alert, TouchableOpacity, SafeAreaView, StatusBar, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import ScreenWrapper from "../components/screenwraper";
 import { NavigationBar } from "../components/NavigationBar";
 import Feather from '@expo/vector-icons/Feather';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { Audio } from 'expo-av';
 
-// Define colors for consistent theming (same as App.jsx)
+// Define colors for consistent theming
 const colors = {
   primary: '#007AFF',
   secondary: '#5856D6',
@@ -22,10 +27,15 @@ const colors = {
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
+  const [sound, setSound] = useState(null);
+  const [playingPostId, setPlayingPostId] = useState(null);
   const navigation = useNavigation();
-  const API_BASE_URL = "https://71ec2670fcfe.ngrok-free.app";
+  const API_BASE_URL = "https://3aac7e2c3fce.ngrok-free.app";
+  const userId = 8; // Replace with actual user ID from auth context
 
   useEffect(() => {
+    console.log('FileSystem:', FileSystem);
+    console.log('downloadAsync:', FileSystem.downloadAsync);
     const fetchAllPosts = async () => {
       try {
         const res = await axios.get(`${API_BASE_URL}/posts`);
@@ -36,7 +46,146 @@ const Posts = () => {
       }
     };
     fetchAllPosts();
-  }, []);
+
+    // Cleanup sound on unmount
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [sound]);
+
+  const requestMediaLibraryPermission = async () => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      return status === 'granted';
+    } catch (err) {
+      console.warn('Permission error:', err);
+      return false;
+    }
+  };
+
+  const handleDownload = async (post) => {
+    if (!post.media_url) {
+      Alert.alert('Error', 'No file available to download.');
+      return;
+    }
+
+    const hasPermission = await requestMediaLibraryPermission();
+    if (!hasPermission) {
+      Alert.alert('Error', 'Media library permission denied.');
+      return;
+    }
+
+    try {
+      const fileName = post.media_url.split('/').pop();
+      const tempFileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      const url = `${API_BASE_URL}${post.media_url}`;
+
+      console.log('Downloading from:', url, 'to:', tempFileUri);
+      console.log('downloadAsync args:', { url, tempFileUri });
+
+      let uri;
+      try {
+        const downloadResult = await FileSystem.downloadAsync(url, tempFileUri);
+        uri = downloadResult.uri;
+      } catch (err) {
+        console.warn('downloadAsync failed, falling back to fetch:', err);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+        const blob = await response.text();
+        await FileSystem.writeAsync(tempFileUri, blob, { encoding: FileSystem.EncodingType.Binary });
+        uri = tempFileUri;
+      }
+
+      if (!uri) {
+        throw new Error('Download failed: No URI returned');
+      }
+
+      const asset = await MediaLibrary.createAssetAsync(uri);
+      await MediaLibrary.createAlbumAsync('MyAppDownloads', asset, false);
+
+      if (Platform.OS === 'android') {
+        const mimeType = post.media_url.endsWith('.docx')
+          ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          : post.media_url.endsWith('.wav')
+            ? 'audio/wav'
+            : 'image/*';
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: asset.uri,
+          type: mimeType,
+          flags: 1,
+        });
+      } else if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      }
+
+      Alert.alert('Success', `File saved to media library: ${asset.filename}`);
+    } catch (err) {
+      console.error('Download error:', err);
+      Alert.alert('Error', `Failed to download file: ${err.message}`);
+    }
+  };
+
+  const handlePlayAudio = async (post) => {
+    if (!post.media_url || !post.media_url.endsWith('.wav')) {
+      Alert.alert('Error', 'Only WAV audio files can be played.');
+      return;
+    }
+
+    try {
+      const fileName = post.media_url.split('/').pop();
+      const tempFileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      const url = `${API_BASE_URL}${post.media_url}`;
+
+      // Download the file if not already cached
+      let uri = tempFileUri;
+      const fileInfo = await FileSystem.getInfoAsync(tempFileUri);
+      if (!fileInfo.exists) {
+        console.log('Downloading audio:', url, 'to:', tempFileUri);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+        const blob = await response.text();
+        await FileSystem.writeAsync(tempFileUri, blob, { encoding: FileSystem.EncodingType.Binary });
+      }
+
+      if (sound && playingPostId === post.id) {
+        if (sound._loaded) {
+          const status = await sound.getStatusAsync();
+          if (status.isPlaying) {
+            await sound.pauseAsync();
+            setPlayingPostId(null);
+          } else {
+            await sound.playAsync();
+            setPlayingPostId(post.id);
+          }
+        }
+        return;
+      }
+
+      // Unload previous sound if playing a different post
+      if (sound) {
+        await sound.unloadAsync();
+      }
+
+      console.log('Loading audio:', uri);
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true }
+      );
+      setSound(newSound);
+      setPlayingPostId(post.id);
+
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          setPlayingPostId(null);
+        }
+      });
+    } catch (error) {
+      console.error('Audio playback error:', error);
+      Alert.alert('Error', 'Failed to play audio: ' + error.message);
+    }
+  };
 
   const handleDelete = async (id) => {
     Alert.alert("Confirm Delete", "Are you sure you want to delete this post?", [
@@ -48,6 +197,11 @@ const Posts = () => {
           try {
             await axios.delete(`${API_BASE_URL}/posts/${id}`);
             setPosts(posts.filter((post) => post.id !== id));
+            if (sound && playingPostId === id) {
+              await sound.unloadAsync();
+              setSound(null);
+              setPlayingPostId(null);
+            }
             Alert.alert('Success', 'Post deleted successfully.');
           } catch (err) {
             console.error('Error deleting post:', err);
@@ -56,6 +210,88 @@ const Posts = () => {
         },
       },
     ]);
+  };
+
+  const handleAIAction = async (postId, action) => {
+    try {
+      const post = posts.find(p => p.id === postId);
+      if (!post) {
+        Alert.alert('Error', 'Post not found.');
+        return;
+      }
+
+      if (action === 'stt' && (!post.media_url || !post.media_url.endsWith('.wav'))) {
+        Alert.alert('Error', 'STT requires an uploaded audio file (.wav).');
+        return;
+      }
+
+      let text = '';
+      let formData;
+
+      if (action === 'stt') {
+        // Download the file for STT
+        const fileName = post.media_url.split('/').pop();
+        const tempFileUri = `${FileSystem.cacheDirectory}${fileName}`;
+        const url = `${API_BASE_URL}${post.media_url}`;
+        const fileInfo = await FileSystem.getInfoAsync(tempFileUri);
+
+        if (!fileInfo.exists) {
+          console.log('Downloading for STT:', url, 'to:', tempFileUri);
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+          const blob = await response.text();
+          await FileSystem.writeAsync(tempFileUri, blob, { encoding: FileSystem.EncodingType.Binary });
+        }
+
+        formData = new FormData();
+        formData.append('user_id', userId);
+        formData.append('audio_file', {
+          uri: tempFileUri,
+          type: 'audio/wav',
+          name: fileName,
+        });
+      } else {
+        text = post.description || post.title || '';
+        if (!text) {
+          Alert.alert('Error', 'No text content available for this action.');
+          return;
+        }
+      }
+
+      console.log('AI Action:', { postId, action, text: action === 'stt' ? '[Audio file]' : text });
+
+      if (action === 'stt') {
+        const response = await axios.post(`${API_BASE_URL}/speech-to-text`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        Alert.alert('Transcription Result', response.data.response);
+      } else {
+        const response = await axios.post(`${API_BASE_URL}/chat`, {
+          user_id: userId,
+          text,
+          action,
+        });
+
+        if (action === 'tts') {
+          Alert.alert('Success', 'Audio generated successfully.', [
+            {
+              text: 'Play Audio',
+              onPress: () => {
+                Alert.alert('Info', `Audio available at: ${response.data.audio_path}`);
+              },
+            },
+            { text: 'OK' },
+          ]);
+        } else {
+          Alert.alert(`${action.charAt(0).toUpperCase() + action.slice(1)} Result`, response.data.response);
+        }
+      }
+    } catch (err) {
+      console.error(`Error processing ${action}:`, err);
+      Alert.alert('Error', `Failed to process ${action}: ${err.response?.data?.detail || err.message}`);
+    }
   };
 
   return (
@@ -81,7 +317,7 @@ const Posts = () => {
               posts.map((post) => (
                 <View key={post.id} style={styles.postCard}>
                   {post.media_url && (
-                    <Image source={{ uri: post.media_url }} style={styles.postImage} />
+                    <Image source={{ uri: `${API_BASE_URL}${post.media_url}` }} style={styles.postImage} />
                   )}
                   <View style={styles.postContent}>
                     <Text style={styles.postTitle}>{post.title}</Text>
@@ -104,6 +340,60 @@ const Posts = () => {
                         <Feather name="edit-3" size={16} color={colors.surface} />
                         <Text style={styles.actionButtonText}>Update</Text>
                       </TouchableOpacity>
+                      {post.media_url && (
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.downloadButton]}
+                          onPress={() => handleDownload(post)}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="download" size={16} color={colors.surface} />
+                          <Text style={styles.actionButtonText}>Download</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.aiButton]}
+                        onPress={() => handleAIAction(post.id, 'translate')}
+                        activeOpacity={0.8}
+                      >
+                        <Feather name="globe" size={16} color={colors.surface} />
+                        <Text style={styles.actionButtonText}>Translate</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.aiButton]}
+                        onPress={() => handleAIAction(post.id, 'tts')}
+                        activeOpacity={0.8}
+                      >
+                        <Feather name="volume-2" size={16} color={colors.surface} />
+                        <Text style={styles.actionButtonText}>TTS</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.aiButton]}
+                        onPress={() => handleAIAction(post.id, 'grammar')}
+                        activeOpacity={0.8}
+                      >
+                        <Feather name="check-circle" size={16} color={colors.surface} />
+                        <Text style={styles.actionButtonText}>Grammar</Text>
+                      </TouchableOpacity>
+                      {post.media_url && post.media_url.endsWith('.wav') && (
+                        <>
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.aiFileButton]}
+                            onPress={() => handleAIAction(post.id, 'stt')}
+                            activeOpacity={0.8}
+                          >
+                            <Feather name="cpu" size={16} color={colors.surface} />
+                            <Text style={styles.actionButtonText}>AI File</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.playButton, playingPostId === post.id && styles.playButtonActive]}
+                            onPress={() => handlePlayAudio(post)}
+                            activeOpacity={0.8}
+                          >
+                            <Feather name={playingPostId === post.id && sound?._loaded && (sound._lastStatusUpdate?.isPlaying || false) ? 'pause' : 'play'} size={16} color={colors.surface} />
+                            <Text style={styles.actionButtonText}>{playingPostId === post.id && sound?._loaded && (sound._lastStatusUpdate?.isPlaying || false) ? 'Pause' : 'Play'}</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -160,7 +450,7 @@ const styles = StyleSheet.create({
   },
   postsContainer: {
     gap: 12,
-    paddingBottom: 100, // Ensure content clears NavigationBar
+    paddingBottom: 100,
   },
   postCard: {
     backgroundColor: colors.surface,
@@ -200,16 +490,18 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: 8,
-    gap: 8,
+    gap: 6,
+    minWidth: '22%',
   },
   deleteButton: {
     backgroundColor: colors.danger,
@@ -217,9 +509,24 @@ const styles = StyleSheet.create({
   updateButton: {
     backgroundColor: colors.warning,
   },
+  downloadButton: {
+    backgroundColor: colors.success,
+  },
+  aiButton: {
+    backgroundColor: colors.secondary,
+  },
+  aiFileButton: {
+    backgroundColor: colors.secondary,
+  },
+  playButton: {
+    backgroundColor: colors.success,
+  },
+  playButtonActive: {
+    backgroundColor: colors.warning,
+  },
   actionButtonText: {
     color: colors.surface,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   addButton: {

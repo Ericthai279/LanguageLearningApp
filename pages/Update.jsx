@@ -17,7 +17,7 @@ const UpdatePost = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const postId = route.params?.postId;
-  const API_BASE_URL = "https://71ec2670fcfe.ngrok-free.app";
+  const API_BASE_URL = "https://3aac7e2c3fce.ngrok-free.app";
 
   // Fetch the current post data when component mounts
   useEffect(() => {

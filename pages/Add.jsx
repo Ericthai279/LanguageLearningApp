@@ -16,7 +16,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { NavigationBar } from '../components/NavigationBar';
 import ScreenWrapper from '../components/screenwraper';
 // API URL - update this to match your backend
-const API_URL = 'https://71ec2670fcfe.ngrok-free.app';
+const API_URL = 'https://3aac7e2c3fce.ngrok-free.app';
 
 // Define colors for consistent theming
 const colors = {
@@ -40,7 +40,7 @@ const AddPost = () => {
   const [userLoading, setUserLoading] = useState(true);
 
   const navigation = useNavigation();
-  const API_BASE_URL = 'https://71ec2670fcfe.ngrok-free.app';
+  const API_BASE_URL = 'https://3aac7e2c3fce.ngrok-free.app';
 
   // Get user data when component mounts
   useEffect(() => {
