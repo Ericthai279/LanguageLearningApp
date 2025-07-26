@@ -25,7 +25,9 @@ import bcrypt
 import jwt
 from passlib.context import CryptContext
 import logging
-
+from PyPDF2 import PdfReader
+from docx import Document
+import io
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -830,7 +832,42 @@ async def process_chat(input: ChatInput, db: Session = Depends(get_db)):
 async def get_history(db: Session = Depends(get_db)):
     messages = db.query(ChatMessage).order_by(ChatMessage.created_at.desc()).all()
     return messages
+@app.post("/document/extract", response_model=dict)
+async def extract_document_text(file: UploadFile = File(...)):
+    """Extract text from PDF or DOCX files."""
+    if file.content_type not in [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ]:
+        raise HTTPException(status_code=400, detail="Unsupported file format. Use PDF or DOCX.")
 
+    # Use temporary file to process upload
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".tmp") as tmp_file:
+        tmp_file.write(await file.read())
+        tmp_file_path = tmp_file.name
+
+    text = ""
+    try:
+        if file.content_type == "application/pdf":
+            pdf_reader = PdfReader(tmp_file_path)
+            for page in pdf_reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
+        else:  # DOCX
+            doc = Document(tmp_file_path)
+            for para in doc.paragraphs:
+                text += para.text + "\n"
+    except Exception as e:
+        logger.error(f"Error extracting text: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error extracting text from file")
+    finally:
+        os.remove(tmp_file_path)  # Clean up temporary file
+
+    if not text.strip():
+        return {"text": "No text could be extracted from the file."}
+
+    return {"text": text}
 @app.get("/uploads/{filename}")
 async def get_file(filename: str):
     file_path = UPLOAD_DIR / filename

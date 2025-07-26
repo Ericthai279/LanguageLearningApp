@@ -1,14 +1,13 @@
 import axios from "axios";
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, ScrollView, StyleSheet, Alert, TouchableOpacity, SafeAreaView, StatusBar, Platform } from "react-native";
+import { View, Text, Image, ScrollView, StyleSheet, Alert, TouchableOpacity, SafeAreaView, StatusBar } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import ScreenWrapper from "../components/screenwraper";
 import { NavigationBar } from "../components/NavigationBar";
 import Feather from '@expo/vector-icons/Feather';
 import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
+import { Audio } from 'expo-av';
 import * as Sharing from 'expo-sharing';
-import * as IntentLauncher from 'expo-intent-launcher';
 
 // Define colors for consistent theming
 const colors = {
@@ -26,13 +25,14 @@ const colors = {
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
+  const [translatedTexts, setTranslatedTexts] = useState({});
+  const [transcriptions, setTranscriptions] = useState({});
+  const [fileUris, setFileUris] = useState({}); // Store file URIs for sharing
   const navigation = useNavigation();
   const API_BASE_URL = "https://3aac7e2c3fce.ngrok-free.app";
   const userId = 8; // Replace with actual user ID from auth context
 
   useEffect(() => {
-    console.log('FileSystem:', FileSystem);
-    console.log('downloadAsync:', FileSystem.downloadAsync);
     const fetchAllPosts = async () => {
       try {
         const res = await axios.get(`${API_BASE_URL}/posts`);
@@ -45,79 +45,56 @@ const Posts = () => {
     fetchAllPosts();
   }, []);
 
-  const requestMediaLibraryPermission = async () => {
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      return status === 'granted';
-    } catch (err) {
-      console.warn('Permission error:', err);
-      return false;
-    }
-  };
-
   const handleDownload = async (post) => {
     if (!post.media_url) {
       Alert.alert('Error', 'No file available to download.');
       return;
     }
 
-    const hasPermission = await requestMediaLibraryPermission();
-    if (!hasPermission) {
-      Alert.alert('Error', 'Media library permission denied.');
+    try {
+      const fileName = post.media_url.split('/').pop();
+      const url = `${API_BASE_URL}${post.media_url}`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+      const downloadResumable = FileSystem.createDownloadResumable(
+        url,
+        fileUri,
+        {},
+        (downloadProgress) => {
+          const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+          console.log(`Download progress: ${progress * 100}%`);
+        }
+      );
+
+      const { uri } = await downloadResumable.downloadAsync();
+      console.log('Finished downloading to ', uri);
+
+      // Save the file URI for sharing
+      setFileUris(prev => ({ ...prev, [post.id]: uri }));
+
+      Alert.alert('Success', `File downloaded to: ${uri}`);
+    } catch (err) {
+      console.error('Download error:', err);
+      Alert.alert('Error', `Failed to download file: ${err.message}`);
+    }
+  };
+
+  const handleShare = async (postId) => {
+    const fileUri = fileUris[postId];
+    if (!fileUri) {
+      Alert.alert('Error', 'File not downloaded yet. Please download the file first.');
       return;
     }
 
     try {
-      const fileName = post.media_url.split('/').pop();
-      const tempFileUri = `${FileSystem.cacheDirectory}${fileName}`;
-      const url = `${API_BASE_URL}${post.media_url}`;
-
-      console.log('Downloading from:', url, 'to:', tempFileUri);
-      console.log('downloadAsync args:', { url, tempFileUri });
-
-      // Try downloadAsync
-      let uri;
-      try {
-        const downloadResult = await FileSystem.downloadAsync(url, tempFileUri);
-        uri = downloadResult.uri;
-      } catch (err) {
-        console.warn('downloadAsync failed, falling back to fetch:', err);
-        // Fallback to fetch
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-        const blob = await response.text(); // Use text for compatibility
-        await FileSystem.writeAsync(tempFileUri, blob, { encoding: FileSystem.EncodingType.Binary });
-        uri = tempFileUri;
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri);
+      } else {
+        Alert.alert('Error', 'Sharing is not available on this device.');
       }
-
-      if (!uri) {
-        throw new Error('Download failed: No URI returned');
-      }
-
-      // Save to media library
-      const asset = await MediaLibrary.createAssetAsync(uri);
-      await MediaLibrary.createAlbumAsync('MyAppDownloads', asset, false);
-
-      // Open or share the file
-      if (Platform.OS === 'android') {
-        const mimeType = post.media_url.endsWith('.docx')
-          ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-          : post.media_url.endsWith('.wav')
-            ? 'audio/wav'
-            : 'image/*';
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: asset.uri,
-          type: mimeType,
-          flags: 1,
-        });
-      } else if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri);
-      }
-
-      Alert.alert('Success', `File saved to media library: ${asset.filename}`);
     } catch (err) {
-      console.error('Download error:', err);
-      Alert.alert('Error', `Failed to download file: ${err.message}`);
+      console.error('Share error:', err);
+      Alert.alert('Error', `Failed to share file: ${err.message}`);
     }
   };
 
@@ -141,6 +118,17 @@ const Posts = () => {
     ]);
   };
 
+  const playAudio = async (url) => {
+    try {
+      const soundObject = new Audio.Sound();
+      await soundObject.loadAsync({ uri: `${API_BASE_URL}${url}` });
+      await soundObject.playAsync();
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      Alert.alert('Error', 'Failed to play audio.');
+    }
+  };
+
   const handleAIAction = async (postId, action) => {
     try {
       const post = posts.find(p => p.id === postId);
@@ -160,29 +148,11 @@ const Posts = () => {
         return;
       }
 
-      console.log('AI Action:', { postId, action, text });
-
       if (action === 'stt') {
-        try {
-          const formData = new FormData();
-          formData.append('user_id', userId);
-          formData.append('audio_file', {
-            uri: post.media_url,
-            type: 'audio/wav',
-            name: 'audio.wav',
-          });
-
-          const response = await axios.post(`${API_BASE_URL}/speech-to-text`, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          });
-
-          Alert.alert('Transcription Result', response.data.response);
-        } catch (err) {
-          console.error('STT error:', err);
-          Alert.alert('Error', `STT failed: ${err.response?.data?.detail || err.message}`);
-        }
+        const response = await axios.post(`${API_BASE_URL}/posts/${postId}/stt`);
+        const transcription = response.data.response;
+        setTranscriptions(prev => ({ ...prev, [postId]: transcription }));
+        Alert.alert('Transcription Result', transcription);
       } else {
         const response = await axios.post(`${API_BASE_URL}/chat`, {
           user_id: userId,
@@ -191,17 +161,13 @@ const Posts = () => {
         });
 
         if (action === 'tts') {
-          Alert.alert('Success', 'Audio generated successfully.', [
-            {
-              text: 'Play Audio',
-              onPress: () => {
-                Alert.alert('Info', `Audio available at: ${response.data.audio_path}`);
-              },
-            },
-            { text: 'OK' },
-          ]);
-        } else {
-          Alert.alert(`${action.charAt(0).toUpperCase() + action.slice(1)} Result`, response.data.response);
+          const audioUrl = `${API_BASE_URL}${response.data.audio_path}`;
+          playAudio(audioUrl);
+          Alert.alert('Success', 'Audio is playing.');
+        } else if (action === 'translate') {
+          setTranslatedTexts(prev => ({ ...prev, [postId]: response.data.response }));
+        } else if (action === 'grammar') {
+          Alert.alert('Grammar Check Result', response.data.response);
         }
       }
     } catch (err) {
@@ -215,13 +181,11 @@ const Posts = () => {
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Header Section */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>All Posts</Text>
             <Text style={styles.headerSubtitle}>Browse community content</Text>
           </View>
 
-          {/* Posts List */}
           <View style={styles.postsContainer}>
             {posts.length === 0 ? (
               <View style={styles.emptyState}>
@@ -233,11 +197,23 @@ const Posts = () => {
               posts.map((post) => (
                 <View key={post.id} style={styles.postCard}>
                   {post.media_url && (
-                    <Image source={{ uri: post.media_url }} style={styles.postImage} />
+                    <Image source={{ uri: `${API_BASE_URL}${post.media_url}` }} style={styles.postImage} />
                   )}
                   <View style={styles.postContent}>
                     <Text style={styles.postTitle}>{post.title}</Text>
                     <Text style={styles.postDescription}>{post.description}</Text>
+                    {transcriptions[post.id] && (
+                      <View style={styles.transcriptionContainer}>
+                        <Text style={styles.transcriptionTitle}>Transcription:</Text>
+                        <Text style={styles.transcriptionText}>{transcriptions[post.id]}</Text>
+                      </View>
+                    )}
+                    {translatedTexts[post.id] && (
+                      <View style={styles.translatedContainer}>
+                        <Text style={styles.translatedTitle}>Translated Text:</Text>
+                        <Text style={styles.translatedText}>{translatedTexts[post.id]}</Text>
+                      </View>
+                    )}
                     <Text style={styles.postUser}>By User {post.user_id}</Text>
                     <View style={styles.buttonContainer}>
                       <TouchableOpacity
@@ -257,14 +233,24 @@ const Posts = () => {
                         <Text style={styles.actionButtonText}>Update</Text>
                       </TouchableOpacity>
                       {post.media_url && (
-                        <TouchableOpacity
-                          style={[styles.actionButton, styles.downloadButton]}
-                          onPress={() => handleDownload(post)}
-                          activeOpacity={0.8}
-                        >
-                          <Feather name="download" size={16} color={colors.surface} />
-                          <Text style={styles.actionButtonText}>Download</Text>
-                        </TouchableOpacity>
+                        <>
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.downloadButton]}
+                            onPress={() => handleDownload(post)}
+                            activeOpacity={0.8}
+                          >
+                            <Feather name="download" size={16} color={colors.surface} />
+                            <Text style={styles.actionButtonText}>Download</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.shareButton]}
+                            onPress={() => handleShare(post.id)}
+                            activeOpacity={0.8}
+                          >
+                            <Feather name="share-2" size={16} color={colors.surface} />
+                            <Text style={styles.actionButtonText}>Share</Text>
+                          </TouchableOpacity>
+                        </>
                       )}
                       <TouchableOpacity
                         style={[styles.actionButton, styles.aiButton]}
@@ -291,14 +277,24 @@ const Posts = () => {
                         <Text style={styles.actionButtonText}>Grammar</Text>
                       </TouchableOpacity>
                       {post.media_url && post.media_url.endsWith('.wav') && (
-                        <TouchableOpacity
-                          style={[styles.actionButton, styles.aiButton]}
-                          onPress={() => handleAIAction(post.id, 'stt')}
-                          activeOpacity={0.8}
-                        >
-                          <Feather name="mic" size={16} color={colors.surface} />
-                          <Text style={styles.actionButtonText}>STT</Text>
-                        </TouchableOpacity>
+                        <>
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.aiButton]}
+                            onPress={() => handleAIAction(post.id, 'st Subsequentlyt')}
+                            activeOpacity={0.8}
+                          >
+                            <Feather name="mic" size={16} color={colors.surface} />
+                            <Text style={styles.actionButtonText}>STT</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.playButton]}
+                            onPress={() => playAudio(post.media_url)}
+                            activeOpacity={0.8}
+                          >
+                            <Feather name="play-circle" size={16} color={colors.surface} />
+                            <Text style={styles.actionButtonText}>Play Audio</Text>
+                          </TouchableOpacity>
+                        </>
                       )}
                     </View>
                   </View>
@@ -307,7 +303,6 @@ const Posts = () => {
             )}
           </View>
 
-          {/* Add New Post Button */}
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => navigation.navigate("AddPost")}
@@ -394,6 +389,32 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 12,
   },
+  transcriptionContainer: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#e6f7ff',
+    borderRadius: 5,
+  },
+  transcriptionTitle: {
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  transcriptionText: {
+    fontSize: 14,
+  },
+  translatedContainer: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 5,
+  },
+  translatedTitle: {
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  translatedText: {
+    fontSize: 14,
+  },
   buttonContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -418,8 +439,14 @@ const styles = StyleSheet.create({
   downloadButton: {
     backgroundColor: colors.success,
   },
+  shareButton: {
+    backgroundColor: colors.secondary,
+  },
   aiButton: {
     backgroundColor: colors.secondary,
+  },
+  playButton: {
+    backgroundColor: colors.primary,
   },
   actionButtonText: {
     color: colors.surface,
