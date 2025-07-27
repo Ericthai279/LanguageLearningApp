@@ -8,7 +8,7 @@ import Button from '../components/Button';
 import Feather from '@expo/vector-icons/Feather';
 import { NavigationBar } from '../components/NavigationBar';
 
-const API_URL = 'https://3aac7e2c3fce.ngrok-free.app';
+const API_URL = 'https://eb7e4ec70a6a.ngrok-free.app';
 
 const colors = {
   primary: '#007AFF',

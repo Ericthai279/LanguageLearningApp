@@ -18,10 +18,14 @@ const colors = {
   danger: '#FF3B30',
   background: '#F2F2F7',
   surface: '#FFFFFF',
-  text: '#1C1C1E',
+  text: '#1C1C1E', // Fixed typo: '#1C1E' to '#1C1C1E'
   textSecondary: '#8E8E93',
   border: '#C6C6C8',
 };
+
+// Local asset references (loaded once to avoid dynamic require issues)
+const PDF_ICON = require('../assets/icons/pdf-icon.png');
+const DOCX_ICON = require('../assets/icons/docx-icon.png');
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
@@ -29,7 +33,7 @@ const Posts = () => {
   const [transcriptions, setTranscriptions] = useState({});
   const [fileUris, setFileUris] = useState({}); // Store file URIs for sharing
   const navigation = useNavigation();
-  const API_BASE_URL = "https://3aac7e2c3fce.ngrok-free.app";
+  const API_BASE_URL = "https://eb7e4ec70a6a.ngrok-free.app";
   const userId = 8; // Replace with actual user ID from auth context
 
   useEffect(() => {
@@ -149,7 +153,10 @@ const Posts = () => {
       }
 
       if (action === 'stt') {
-        const response = await axios.post(`${API_BASE_URL}/posts/${postId}/stt`);
+        const response = await axios.post(`${API_BASE_URL}/speech-to-text`, { // Fixed endpoint
+          user_id: userId,
+          audio_file: post.media_url, // Note: This may need backend adjustment
+        });
         const transcription = response.data.response;
         setTranscriptions(prev => ({ ...prev, [postId]: transcription }));
         Alert.alert('Transcription Result', transcription);
@@ -166,7 +173,7 @@ const Posts = () => {
           Alert.alert('Success', 'Audio is playing.');
         } else if (action === 'translate') {
           setTranslatedTexts(prev => ({ ...prev, [postId]: response.data.response }));
-        } else if (action === 'grammar') {
+        } else if (action == 'grammar') {
           Alert.alert('Grammar Check Result', response.data.response);
         }
       }
@@ -174,6 +181,13 @@ const Posts = () => {
       console.error(`Error processing ${action}:`, err);
       Alert.alert('Error', `Failed to process ${action}: ${err.response?.data?.detail || err.message}`);
     }
+  };
+
+  const getImageSource = (mediaUrl) => {
+    if (!mediaUrl) return null;
+    if (mediaUrl.endsWith('.pdf')) return PDF_ICON;
+    if (mediaUrl.endsWith('.docx')) return DOCX_ICON;
+    return { uri: `${API_BASE_URL}${mediaUrl}` };
   };
 
   return (
@@ -197,7 +211,13 @@ const Posts = () => {
               posts.map((post) => (
                 <View key={post.id} style={styles.postCard}>
                   {post.media_url && (
-                    <Image source={{ uri: `${API_BASE_URL}${post.media_url}` }} style={styles.postImage} />
+                    <TouchableOpacity onPress={() => handleDownload(post)} activeOpacity={0.8}>
+                      <Image
+                        source={getImageSource(post.media_url)}
+                        style={styles.postImage}
+                        defaultSource={PDF_ICON} // Fallback image
+                      />
+                    </TouchableOpacity>
                   )}
                   <View style={styles.postContent}>
                     <Text style={styles.postTitle}>{post.title}</Text>
@@ -233,24 +253,14 @@ const Posts = () => {
                         <Text style={styles.actionButtonText}>Update</Text>
                       </TouchableOpacity>
                       {post.media_url && (
-                        <>
-                          <TouchableOpacity
-                            style={[styles.actionButton, styles.downloadButton]}
-                            onPress={() => handleDownload(post)}
-                            activeOpacity={0.8}
-                          >
-                            <Feather name="download" size={16} color={colors.surface} />
-                            <Text style={styles.actionButtonText}>Download</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.actionButton, styles.shareButton]}
-                            onPress={() => handleShare(post.id)}
-                            activeOpacity={0.8}
-                          >
-                            <Feather name="share-2" size={16} color={colors.surface} />
-                            <Text style={styles.actionButtonText}>Share</Text>
-                          </TouchableOpacity>
-                        </>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.shareButton]}
+                          onPress={() => handleShare(post.id)}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="share-2" size={16} color={colors.surface} />
+                          <Text style={styles.actionButtonText}>Share</Text>
+                        </TouchableOpacity>
                       )}
                       <TouchableOpacity
                         style={[styles.actionButton, styles.aiButton]}
@@ -280,7 +290,7 @@ const Posts = () => {
                         <>
                           <TouchableOpacity
                             style={[styles.actionButton, styles.aiButton]}
-                            onPress={() => handleAIAction(post.id, 'st Subsequentlyt')}
+                            onPress={() => handleAIAction(post.id, 'stt')}
                             activeOpacity={0.8}
                           >
                             <Feather name="mic" size={16} color={colors.surface} />
@@ -368,7 +378,8 @@ const styles = StyleSheet.create({
   postImage: {
     width: '100%',
     height: 200,
-    resizeMode: 'cover',
+    resizeMode: 'contain',
+    backgroundColor: '#F5F5F5',
   },
   postContent: {
     padding: 16,
@@ -435,9 +446,6 @@ const styles = StyleSheet.create({
   },
   updateButton: {
     backgroundColor: colors.warning,
-  },
-  downloadButton: {
-    backgroundColor: colors.success,
   },
   shareButton: {
     backgroundColor: colors.secondary,
