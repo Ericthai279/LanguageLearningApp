@@ -7,8 +7,12 @@ import { NavigationBar } from '../components/NavigationBar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-// API base URL (match your Login page)
-const API_URL = 'https://eb7e4ec70a6a.ngrok-free.app -> http://localhost:8800';
+// API base URL
+const API_URL = 'https://eb7e4ec70a6a.ngrok-free.app';
+
+// Local asset references
+const PDF_ICON = require('../assets/icons/pdf-icon.png');
+const DOCX_ICON = require('../assets/icons/docx-icon.png');
 
 const ProfileScreen = () => {
   const [user, setUser] = useState(null);
@@ -135,15 +139,23 @@ const ProfileScreen = () => {
     }
   };
 
+  const getPostImageSource = (mediaUrl) => {
+    if (!mediaUrl) return null;
+    if (mediaUrl.endsWith('.pdf')) return PDF_ICON;
+    if (mediaUrl.endsWith('.docx')) return DOCX_ICON;
+    return { uri: `${API_URL}${mediaUrl}` };
+  };
+
   const renderPost = ({ item }) => (
     <View style={styles.postContainer}>
       <Text style={styles.postTitle}>{item.title || 'Untitled Post'}</Text>
       <Text style={styles.postDescription}>{item.description}</Text>
       {item.media_url && (
         <Image
-          source={{ uri: `${API_URL}${item.media_url}` }}
+          source={getPostImageSource(item.media_url)}
           style={styles.postImage}
-          resizeMode="cover"
+          resizeMode={item.media_url.endsWith('.pdf') || item.media_url.endsWith('.docx') ? 'contain' : 'cover'}
+          defaultSource={PDF_ICON}
         />
       )}
       <Text style={styles.postDate}>
@@ -243,7 +255,7 @@ const ProfileScreen = () => {
           )}
         </View>
       </View>
-      <NavigationBar/>
+      <NavigationBar />
     </ScreenWrapper>
   );
 };
@@ -375,6 +387,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 5,
     marginBottom: 10,
+    backgroundColor: '#f5f5f5',
   },
   postDate: {
     fontSize: 12,

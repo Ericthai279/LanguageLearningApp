@@ -18,12 +18,12 @@ const colors = {
   danger: '#FF3B30',
   background: '#F2F2F7',
   surface: '#FFFFFF',
-  text: '#1C1C1E', // Fixed typo: '#1C1E' to '#1C1C1E'
+  text: '#1C1C1E',
   textSecondary: '#8E8E93',
   border: '#C6C6C8',
 };
 
-// Local asset references (loaded once to avoid dynamic require issues)
+// Local asset references
 const PDF_ICON = require('../assets/icons/pdf-icon.png');
 const DOCX_ICON = require('../assets/icons/docx-icon.png');
 
@@ -31,7 +31,9 @@ const Posts = () => {
   const [posts, setPosts] = useState([]);
   const [translatedTexts, setTranslatedTexts] = useState({});
   const [transcriptions, setTranscriptions] = useState({});
-  const [fileUris, setFileUris] = useState({}); // Store file URIs for sharing
+  const [fileUris, setFileUris] = useState({});
+  const [currentSound, setCurrentSound] = useState(null);
+  const [playingPostId, setPlayingPostId] = useState(null);
   const navigation = useNavigation();
   const API_BASE_URL = "https://eb7e4ec70a6a.ngrok-free.app";
   const userId = 8; // Replace with actual user ID from auth context
@@ -47,6 +49,12 @@ const Posts = () => {
       }
     };
     fetchAllPosts();
+
+    return () => {
+      if (currentSound) {
+        currentSound.unloadAsync().catch(console.error);
+      }
+    };
   }, []);
 
   const handleDownload = async (post) => {
@@ -72,10 +80,7 @@ const Posts = () => {
 
       const { uri } = await downloadResumable.downloadAsync();
       console.log('Finished downloading to ', uri);
-
-      // Save the file URI for sharing
       setFileUris(prev => ({ ...prev, [post.id]: uri }));
-
       Alert.alert('Success', `File downloaded to: ${uri}`);
     } catch (err) {
       console.error('Download error:', err);
@@ -122,13 +127,45 @@ const Posts = () => {
     ]);
   };
 
-  const playAudio = async (url) => {
+  const stopAudio = async () => {
+    if (currentSound) {
+      try {
+        await currentSound.stopAsync();
+        await currentSound.unloadAsync();
+        setCurrentSound(null);
+        setPlayingPostId(null);
+      } catch (error) {
+        console.error('Error stopping audio:', error);
+      }
+    }
+  };
+
+  const handlePlayAudio = async (audioUrl, postId) => {
     try {
-      const soundObject = new Audio.Sound();
-      await soundObject.loadAsync({ uri: `${API_BASE_URL}${url}` });
-      await soundObject.playAsync();
+      if (currentSound) {
+        await currentSound.stopAsync();
+        await currentSound.unloadAsync();
+        setCurrentSound(null);
+        setPlayingPostId(null);
+      }
+      if (playingPostId === postId) return;
+      const fullUrl = `${API_BASE_URL}${audioUrl}`;
+      console.log('Playing audio from:', fullUrl);
+      setPlayingPostId(postId);
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: fullUrl },
+        { shouldPlay: true },
+        (status) => {
+          if (status.didJustFinish) {
+            setPlayingPostId(null);
+            setCurrentSound(null);
+          }
+        }
+      );
+      setCurrentSound(sound);
     } catch (error) {
       console.error('Error playing audio:', error);
+      setPlayingPostId(null);
       Alert.alert('Error', 'Failed to play audio.');
     }
   };
@@ -153,9 +190,20 @@ const Posts = () => {
       }
 
       if (action === 'stt') {
-        const response = await axios.post(`${API_BASE_URL}/speech-to-text`, { // Fixed endpoint
-          user_id: userId,
-          audio_file: post.media_url, // Note: This may need backend adjustment
+        const fileUri = fileUris[postId];
+        if (!fileUri) {
+          Alert.alert('Error', 'Please download the audio file first.');
+          return;
+        }
+        const formData = new FormData();
+        formData.append('audio_file', {
+          uri: fileUri,
+          name: post.media_url.split('/').pop(),
+          type: 'audio/wav',
+        });
+        formData.append('user_id', userId.toString());
+        const response = await axios.post(`${API_BASE_URL}/speech-to-text`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
         });
         const transcription = response.data.response;
         setTranscriptions(prev => ({ ...prev, [postId]: transcription }));
@@ -169,11 +217,11 @@ const Posts = () => {
 
         if (action === 'tts') {
           const audioUrl = `${API_BASE_URL}${response.data.audio_path}`;
-          playAudio(audioUrl);
+          handlePlayAudio(response.data.audio_path, postId);
           Alert.alert('Success', 'Audio is playing.');
         } else if (action === 'translate') {
           setTranslatedTexts(prev => ({ ...prev, [postId]: response.data.response }));
-        } else if (action == 'grammar') {
+        } else if (action === 'grammar') {
           Alert.alert('Grammar Check Result', response.data.response);
         }
       }
@@ -208,108 +256,111 @@ const Posts = () => {
                 <Text style={styles.emptyStateSubText}>Be the first to share something!</Text>
               </View>
             ) : (
-              posts.map((post) => (
-                <View key={post.id} style={styles.postCard}>
-                  {post.media_url && (
-                    <TouchableOpacity onPress={() => handleDownload(post)} activeOpacity={0.8}>
-                      <Image
-                        source={getImageSource(post.media_url)}
-                        style={styles.postImage}
-                        defaultSource={PDF_ICON} // Fallback image
-                      />
-                    </TouchableOpacity>
-                  )}
-                  <View style={styles.postContent}>
-                    <Text style={styles.postTitle}>{post.title}</Text>
-                    <Text style={styles.postDescription}>{post.description}</Text>
-                    {transcriptions[post.id] && (
-                      <View style={styles.transcriptionContainer}>
-                        <Text style={styles.transcriptionTitle}>Transcription:</Text>
-                        <Text style={styles.transcriptionText}>{transcriptions[post.id]}</Text>
-                      </View>
-                    )}
-                    {translatedTexts[post.id] && (
-                      <View style={styles.translatedContainer}>
-                        <Text style={styles.translatedTitle}>Translated Text:</Text>
-                        <Text style={styles.translatedText}>{translatedTexts[post.id]}</Text>
-                      </View>
-                    )}
-                    <Text style={styles.postUser}>By User {post.user_id}</Text>
-                    <View style={styles.buttonContainer}>
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.deleteButton]}
-                        onPress={() => handleDelete(post.id)}
-                        activeOpacity={0.8}
-                      >
-                        <Feather name="trash-2" size={16} color={colors.surface} />
-                        <Text style={styles.actionButtonText}>Delete</Text>
+              posts.map((post) => {
+                const isPlaying = playingPostId === post.id;
+                return (
+                  <View key={post.id} style={styles.postCard}>
+                    {post.media_url && (
+                      <TouchableOpacity onPress={() => handleDownload(post)} activeOpacity={0.8}>
+                        <Image
+                          source={getImageSource(post.media_url)}
+                          style={styles.postImage}
+                          defaultSource={PDF_ICON}
+                        />
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.updateButton]}
-                        onPress={() => navigation.navigate("UpdatePost", { postId: post.id })}
-                        activeOpacity={0.8}
-                      >
-                        <Feather name="edit-3" size={16} color={colors.surface} />
-                        <Text style={styles.actionButtonText}>Update</Text>
-                      </TouchableOpacity>
-                      {post.media_url && (
+                    )}
+                    <View style={styles.postContent}>
+                      <Text style={styles.postTitle}>{post.title}</Text>
+                      <Text style={styles.postDescription}>{post.description}</Text>
+                      {transcriptions[post.id] && (
+                        <View style={styles.transcriptionContainer}>
+                          <Text style={styles.transcriptionTitle}>Transcription:</Text>
+                          <Text style={styles.transcriptionText}>{transcriptions[post.id]}</Text>
+                        </View>
+                      )}
+                      {translatedTexts[post.id] && (
+                        <View style={styles.translatedContainer}>
+                          <Text style={styles.translatedTitle}>Translated Text:</Text>
+                          <Text style={styles.translatedText}>{translatedTexts[post.id]}</Text>
+                        </View>
+                      )}
+                      <Text style={styles.postUser}>By User {post.user_id}</Text>
+                      <View style={styles.buttonContainer}>
                         <TouchableOpacity
-                          style={[styles.actionButton, styles.shareButton]}
-                          onPress={() => handleShare(post.id)}
+                          style={[styles.actionButton, styles.deleteButton]}
+                          onPress={() => handleDelete(post.id)}
                           activeOpacity={0.8}
                         >
-                          <Feather name="share-2" size={16} color={colors.surface} />
-                          <Text style={styles.actionButtonText}>Share</Text>
+                          <Feather name="trash-2" size={16} color={colors.surface} />
+                          <Text style={styles.actionButtonText}>Delete</Text>
                         </TouchableOpacity>
-                      )}
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.aiButton]}
-                        onPress={() => handleAIAction(post.id, 'translate')}
-                        activeOpacity={0.8}
-                      >
-                        <Feather name="globe" size={16} color={colors.surface} />
-                        <Text style={styles.actionButtonText}>Translate</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.aiButton]}
-                        onPress={() => handleAIAction(post.id, 'tts')}
-                        activeOpacity={0.8}
-                      >
-                        <Feather name="volume-2" size={16} color={colors.surface} />
-                        <Text style={styles.actionButtonText}>TTS</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.aiButton]}
-                        onPress={() => handleAIAction(post.id, 'grammar')}
-                        activeOpacity={0.8}
-                      >
-                        <Feather name="check-circle" size={16} color={colors.surface} />
-                        <Text style={styles.actionButtonText}>Grammar</Text>
-                      </TouchableOpacity>
-                      {post.media_url && post.media_url.endsWith('.wav') && (
-                        <>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.updateButton]}
+                          onPress={() => navigation.navigate("UpdatePost", { postId: post.id })}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="edit-3" size={16} color={colors.surface} />
+                          <Text style={styles.actionButtonText}>Update</Text>
+                        </TouchableOpacity>
+                        {post.media_url && (
                           <TouchableOpacity
-                            style={[styles.actionButton, styles.aiButton]}
-                            onPress={() => handleAIAction(post.id, 'stt')}
+                            style={[styles.actionButton, styles.shareButton]}
+                            onPress={() => handleShare(post.id)}
                             activeOpacity={0.8}
                           >
-                            <Feather name="mic" size={16} color={colors.surface} />
-                            <Text style={styles.actionButtonText}>STT</Text>
+                            <Feather name="share-2" size={16} color={colors.surface} />
+                            <Text style={styles.actionButtonText}>Share</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.actionButton, styles.playButton]}
-                            onPress={() => playAudio(post.media_url)}
-                            activeOpacity={0.8}
-                          >
-                            <Feather name="play-circle" size={16} color={colors.surface} />
-                            <Text style={styles.actionButtonText}>Play Audio</Text>
-                          </TouchableOpacity>
-                        </>
-                      )}
+                        )}
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.aiButton]}
+                          onPress={() => handleAIAction(post.id, 'translate')}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="globe" size={16} color={colors.surface} />
+                          <Text style={styles.actionButtonText}>Translate</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.aiButton]}
+                          onPress={() => handleAIAction(post.id, 'tts')}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="volume-2" size={16} color={colors.surface} />
+                          <Text style={styles.actionButtonText}>TTS</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.aiButton]}
+                          onPress={() => handleAIAction(post.id, 'grammar')}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="check-circle" size={16} color={colors.surface} />
+                          <Text style={styles.actionButtonText}>Grammar</Text>
+                        </TouchableOpacity>
+                        {post.media_url && post.media_url.endsWith('.wav') && (
+                          <>
+                            <TouchableOpacity
+                              style={[styles.actionButton, styles.aiButton]}
+                              onPress={() => handleAIAction(post.id, 'stt')}
+                              activeOpacity={0.8}
+                            >
+                              <Feather name="mic" size={16} color={colors.surface} />
+                              <Text style={styles.actionButtonText}>STT</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.actionButton, styles.playButton, isPlaying && styles.playingButton]}
+                              onPress={() => isPlaying ? stopAudio() : handlePlayAudio(post.media_url, post.id)}
+                              activeOpacity={0.8}
+                            >
+                              <Feather name={isPlaying ? "pause" : "play-circle"} size={16} color={colors.surface} />
+                              <Text style={styles.actionButtonText}>{isPlaying ? "Stop Audio" : "Play Audio"}</Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
           </View>
 
@@ -455,6 +506,9 @@ const styles = StyleSheet.create({
   },
   playButton: {
     backgroundColor: colors.primary,
+  },
+  playingButton: {
+    backgroundColor: colors.danger,
   },
   actionButtonText: {
     color: colors.surface,
