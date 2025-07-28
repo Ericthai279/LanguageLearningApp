@@ -35,7 +35,7 @@ const Posts = () => {
   const [currentSound, setCurrentSound] = useState(null);
   const [playingPostId, setPlayingPostId] = useState(null);
   const navigation = useNavigation();
-  const API_BASE_URL = "https://eb7e4ec70a6a.ngrok-free.app";
+  const API_BASE_URL = "https://404854cfd8c3.ngrok-free.app";
   const userId = 8; // Replace with actual user ID from auth context
 
   useEffect(() => {
@@ -216,8 +216,8 @@ const Posts = () => {
         });
 
         if (action === 'tts') {
-          const audioUrl = `${API_BASE_URL}${response.data.audio_path}`;
-          handlePlayAudio(response.data.audio_path, postId);
+          const audioUrl = response.data.audio_path;
+          handlePlayAudio(audioUrl, postId);
           Alert.alert('Success', 'Audio is playing.');
         } else if (action === 'translate') {
           setTranslatedTexts(prev => ({ ...prev, [postId]: response.data.response }));
@@ -236,6 +236,16 @@ const Posts = () => {
     if (mediaUrl.endsWith('.pdf')) return PDF_ICON;
     if (mediaUrl.endsWith('.docx')) return DOCX_ICON;
     return { uri: `${API_BASE_URL}${mediaUrl}` };
+  };
+
+  const handleViewEbook = (postId) => {
+    const post = posts.find(p => p.id === postId);
+    console.log('Navigating to Ebook with postId:', postId); // Debug log
+    if (!post || !post.media_url || !['.pdf', '.docx'].some(ext => post.media_url.endsWith(ext))) {
+      Alert.alert('Error', 'This post does not contain a readable document (PDF or DOCX).');
+      return;
+    }
+    navigation.navigate('Ebook', { postId });
   };
 
   return (
@@ -355,6 +365,16 @@ const Posts = () => {
                               <Text style={styles.actionButtonText}>{isPlaying ? "Stop Audio" : "Play Audio"}</Text>
                             </TouchableOpacity>
                           </>
+                        )}
+                        {post.media_url && ['.pdf', '.docx'].some(ext => post.media_url.endsWith(ext)) && (
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.ebookButton]}
+                            onPress={() => handleViewEbook(post.id)}
+                            activeOpacity={0.8}
+                          >
+                            <Feather name="book-open" size={16} color={colors.surface} />
+                            <Text style={styles.actionButtonText}>View E-Book</Text>
+                          </TouchableOpacity>
                         )}
                       </View>
                     </View>
@@ -509,6 +529,9 @@ const styles = StyleSheet.create({
   },
   playingButton: {
     backgroundColor: colors.danger,
+  },
+  ebookButton: {
+    backgroundColor: colors.success,
   },
   actionButtonText: {
     color: colors.surface,

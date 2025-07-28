@@ -13,7 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NavigationBar } from '../components/NavigationBar';
 
 const Login = () => {
-  const API_URL = 'https://eb7e4ec70a6a.ngrok-free.app'; // FastAPI backend URL
+  const API_URL = 'https://404854cfd8c3.ngrok-free.app'; // FastAPI backend URL
   const emailRef = useRef('');
   const passwordRef = useRef('');
   const [loading, setLoading] = useState(false);

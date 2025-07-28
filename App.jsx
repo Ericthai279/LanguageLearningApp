@@ -24,6 +24,7 @@ import Login from "./pages/Login.jsx";
 import SignUp from "./pages/SignUp.jsx";
 import Chatbot from "./pages/Chatbot.jsx";
 import ProfileScreen from "./pages/ProfileScreen.jsx";
+import Ebook from "./pages/e-book.jsx";
 
 const Stack = createNativeStackNavigator();
 
@@ -137,7 +138,6 @@ const HomeScreen = ({ navigation }) => {
       screen: 'UpdatePost',
       requiresAuth: true
     },
-
   ];
 
   const authActions = [
@@ -169,111 +169,110 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <ScreenWrapper>
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header Section */}
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.appTitle}>SocialHub</Text>
-            <Text style={styles.appSubtitle}>Connect, Share, Discover</Text>
-          </View>
-          
-          {user ? (
-            <View style={styles.userSection}>
-              <View style={styles.userInfo}>
-                <Text style={styles.welcomeText}>Welcome back!</Text>
-                <Text style={styles.userName}>{user.username || user.email}</Text>
-              </View>
-              <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                <Feather name="log-out" size={20} color={colors.danger} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.guestSection}>
-              <Text style={styles.guestText}>Join our community</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Main Features Grid */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Features</Text>
-          <View style={styles.featuresGrid}>
-            {mainFeatures.map((feature) => (
-              <TouchableOpacity
-                key={feature.id}
-                style={[styles.featureCard, { borderLeftColor: feature.color }]}
-                onPress={() => navigateWithAuth(feature.screen, feature.requiresAuth)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.featureContent}>
-                  <View style={[styles.featureIcon, { backgroundColor: feature.color + '20' }]}>
-                    <Feather name={feature.icon} size={24} color={feature.color} />
-                  </View>
-                  <View style={styles.featureText}>
-                    <Text style={styles.featureTitle}>{feature.title}</Text>
-                    <Text style={styles.featureSubtitle}>{feature.subtitle}</Text>
-                  </View>
-                  <Feather name="chevron-right" size={20} color={colors.textSecondary} />
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Header Section */}
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <Text style={styles.appTitle}>SocialHub</Text>
+              <Text style={styles.appSubtitle}>Connect, Share, Discover</Text>
+            </View>
+            
+            {user ? (
+              <View style={styles.userSection}>
+                <View style={styles.userInfo}>
+                  <Text style={styles.welcomeText}>Welcome back!</Text>
+                  <Text style={styles.userName}>{user.username || user.email}</Text>
+                </View>
+                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                  <Feather name="log-out" size={20} color={colors.danger} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.guestSection}>
+                <Text style={styles.guestText}>Join our community</Text>
+              </View>
+            )}
+          </View>
 
-        {/* Authentication Section (only show if not logged in) */}
-        {!user && (
+          {/* Main Features Grid */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Get Started</Text>
-            <View style={styles.authContainer}>
-              {authActions.map((action) => (
+            <Text style={styles.sectionTitle}>Features</Text>
+            <View style={styles.featuresGrid}>
+              {mainFeatures.map((feature) => (
                 <TouchableOpacity
-                  key={action.id}
-                  style={[styles.authButton, { backgroundColor: action.color }]}
-                  onPress={() => navigation.navigate(action.screen)}
-                  activeOpacity={0.8}
+                  key={feature.id}
+                  style={[styles.featureCard, { borderLeftColor: feature.color }]}
+                  onPress={() => navigateWithAuth(feature.screen, feature.requiresAuth)}
+                  activeOpacity={0.7}
                 >
-                  <Feather name={action.icon} size={20} color="white" />
-                  <Text style={styles.authButtonText}>{action.title}</Text>
+                  <View style={styles.featureContent}>
+                    <View style={[styles.featureIcon, { backgroundColor: feature.color + '20' }]}>
+                      <Feather name={feature.icon} size={24} color={feature.color} />
+                    </View>
+                    <View style={styles.featureText}>
+                      <Text style={styles.featureTitle}>{feature.title}</Text>
+                      <Text style={styles.featureSubtitle}>{feature.subtitle}</Text>
+                    </View>
+                    <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
-        )}
 
-        {/* Quick Stats or Info Section */}
-        <View style={styles.section}>
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Feather name="users" size={24} color={colors.primary} />
-              <Text style={styles.statNumber}>1K+</Text>
-              <Text style={styles.statLabel}>Active Users</Text>
+          {/* Authentication Section (only show if not logged in) */}
+          {!user && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Get Started</Text>
+              <View style={styles.authContainer}>
+                {authActions.map((action) => (
+                  <TouchableOpacity
+                    key={action.id}
+                    style={[styles.authButton, { backgroundColor: action.color }]}
+                    onPress={() => navigation.navigate(action.screen)}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name={action.icon} size={20} color="white" />
+                    <Text style={styles.authButtonText}>{action.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
-            <View style={styles.statCard}>
-              <Feather name="file-text" size={24} color={colors.success} />
-              <Text style={styles.statNumber}>5K+</Text>
-              <Text style={styles.statLabel}>Posts Shared</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Feather name="message-square" size={24} color={colors.secondary} />
-              <Text style={styles.statNumber}>24/7</Text>
-              <Text style={styles.statLabel}>AI Support</Text>
+          )}
+
+          {/* Quick Stats or Info Section */}
+          <View style={styles.section}>
+            <View style={styles.statsContainer}>
+              <View style={styles.statCard}>
+                <Feather name="users" size={24} color={colors.primary} />
+                <Text style={styles.statNumber}>1K+</Text>
+                <Text style={styles.statLabel}>Active Users</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Feather name="file-text" size={24} color={colors.success} />
+                <Text style={styles.statNumber}>5K+</Text>
+                <Text style={styles.statLabel}>Posts Shared</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Feather name="message-square" size={24} color={colors.secondary} />
+                <Text style={styles.statNumber}>24/7</Text>
+                <Text style={styles.statLabel}>AI Support</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <TouchableOpacity onPress={() => navigation.navigate('WelcomeScreen')}>
-            <Text style={styles.footerLink}>About SocialHub</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-    <NavigationBar/>
+          {/* Footer */}
+          <View style={styles.footer}>
+            <TouchableOpacity onPress={() => navigation.navigate('WelcomeScreen')}>
+              <Text style={styles.footerLink}>About SocialHub</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+      <NavigationBar />
     </ScreenWrapper>
   );
 };
@@ -320,7 +319,6 @@ export default function App() {
         <Stack.Screen 
           name="Login" 
           component={Login}
-          // options={{ title: 'Sign In' }}
           options={{ headerShown: false }}
         />
         <Stack.Screen 
@@ -336,6 +334,11 @@ export default function App() {
         <Stack.Screen 
           name="ProfileScreen" 
           component={ProfileScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="Ebook" 
+          component={Ebook}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

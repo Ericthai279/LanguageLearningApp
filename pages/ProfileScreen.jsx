@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 // API base URL
-const API_URL = 'https://eb7e4ec70a6a.ngrok-free.app';
+const API_URL = 'https://404854cfd8c3.ngrok-free.app';
 
 // Local asset references
 const PDF_ICON = require('../assets/icons/pdf-icon.png');
