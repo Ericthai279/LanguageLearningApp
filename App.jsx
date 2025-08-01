@@ -15,7 +15,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Feather from '@expo/vector-icons/Feather';
 import ScreenWrapper from "./components/screenwraper.jsx";
 import { NavigationBar } from "./components/NavigationBar.jsx";
-// Import your pages
 import WelcomeScreen from "./pages/Welcome.jsx";
 import AddPost from "./pages/Add.jsx";
 import Posts from "./pages/Post.jsx";
@@ -28,7 +27,6 @@ import Ebook from "./pages/e-book.jsx";
 
 const Stack = createNativeStackNavigator();
 
-// Define colors for consistent theming
 const colors = {
   primary: '#007AFF',
   secondary: '#5856D6',
@@ -77,8 +75,13 @@ const HomeScreen = ({ navigation }) => {
             try {
               await AsyncStorage.removeItem('user');
               setUser(null);
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+              });
             } catch (error) {
               console.error('Error logging out:', error);
+              Alert.alert('Error', 'Failed to log out. Please try again.');
             }
           }
         }
@@ -138,6 +141,15 @@ const HomeScreen = ({ navigation }) => {
       screen: 'UpdatePost',
       requiresAuth: true
     },
+    {
+      id: 'profile',
+      title: 'Profile',
+      subtitle: 'View your profile',
+      icon: 'user',
+      color: colors.secondary,
+      screen: 'ProfileScreen',
+      requiresAuth: true
+    },
   ];
 
   const authActions = [
@@ -173,7 +185,6 @@ const HomeScreen = ({ navigation }) => {
         <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
         
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Header Section */}
           <View style={styles.header}>
             <View style={styles.headerContent}>
               <Text style={styles.appTitle}>SocialHub</Text>
@@ -197,7 +208,6 @@ const HomeScreen = ({ navigation }) => {
             )}
           </View>
 
-          {/* Main Features Grid */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Features</Text>
             <View style={styles.featuresGrid}>
@@ -223,7 +233,6 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Authentication Section (only show if not logged in) */}
           {!user && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Get Started</Text>
@@ -243,7 +252,6 @@ const HomeScreen = ({ navigation }) => {
             </View>
           )}
 
-          {/* Quick Stats or Info Section */}
           <View style={styles.section}>
             <View style={styles.statsContainer}>
               <View style={styles.statCard}>
@@ -264,7 +272,6 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Footer */}
           <View style={styles.footer}>
             <TouchableOpacity onPress={() => navigation.navigate('WelcomeScreen')}>
               <Text style={styles.footerLink}>About SocialHub</Text>

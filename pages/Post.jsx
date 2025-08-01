@@ -8,6 +8,7 @@ import Feather from '@expo/vector-icons/Feather';
 import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
 import * as Sharing from 'expo-sharing';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define colors for consistent theming
 const colors = {
@@ -34,32 +35,74 @@ const Posts = () => {
   const [fileUris, setFileUris] = useState({});
   const [currentSound, setCurrentSound] = useState(null);
   const [playingPostId, setPlayingPostId] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [token, setToken] = useState(null);
+  const [userLoading, setUserLoading] = useState(true);
   const navigation = useNavigation();
   const API_BASE_URL = "https://404854cfd8c3.ngrok-free.app";
-  const userId = 8; // Replace with actual user ID from auth context
+
+  useEffect(() => {
+    const getUserData = async () => {
+      try {
+        const userJson = await AsyncStorage.getItem('user');
+        if (userJson) {
+          const userData = JSON.parse(userJson);
+          console.log('Retrieved user data for posts:', userData);
+          setUserId(userData.id);
+          setToken(userData.token);
+          axios.defaults.headers.common['Authorization'] = `Bearer ${userData.token}`;
+        } else {
+          Alert.alert(
+            'Authentication Required',
+            'Please login to view posts',
+            [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+          );
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        Alert.alert('Error', 'Failed to load user data. Please login again.');
+        navigation.navigate('Login');
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    getUserData();
+  }, [navigation]);
 
   useEffect(() => {
     const fetchAllPosts = async () => {
+      if (!userId || !token) return;
       try {
-        const res = await axios.get(`${API_BASE_URL}/posts`);
+        const res = await axios.get(`${API_BASE_URL}/posts`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         setPosts(res.data);
       } catch (err) {
         console.error('Error fetching posts:', err);
         Alert.alert('Error', 'Failed to load posts. Please try again.');
       }
     };
-    fetchAllPosts();
+
+    if (userId && token) {
+      fetchAllPosts();
+    }
 
     return () => {
       if (currentSound) {
         currentSound.unloadAsync().catch(console.error);
       }
     };
-  }, []);
+  }, [userId, token]);
 
   const handleDownload = async (post) => {
     if (!post.media_url) {
       Alert.alert('Error', 'No file available to download.');
+      return;
+    }
+
+    if (!userId || !token) {
+      Alert.alert('Error', 'You must be logged in to download files.');
       return;
     }
 
@@ -71,7 +114,7 @@ const Posts = () => {
       const downloadResumable = FileSystem.createDownloadResumable(
         url,
         fileUri,
-        {},
+        { headers: { Authorization: `Bearer ${token}` } },
         (downloadProgress) => {
           const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
           console.log(`Download progress: ${progress * 100}%`);
@@ -108,6 +151,11 @@ const Posts = () => {
   };
 
   const handleDelete = async (id) => {
+    if (!userId || !token) {
+      Alert.alert('Error', 'You must be logged in to delete posts.');
+      return;
+    }
+
     Alert.alert("Confirm Delete", "Are you sure you want to delete this post?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -115,7 +163,9 @@ const Posts = () => {
         style: "destructive",
         onPress: async () => {
           try {
-            await axios.delete(`${API_BASE_URL}/posts/${id}`);
+            await axios.delete(`${API_BASE_URL}/posts/${id}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
             setPosts(posts.filter((post) => post.id !== id));
             Alert.alert('Success', 'Post deleted successfully.');
           } catch (err) {
@@ -141,6 +191,11 @@ const Posts = () => {
   };
 
   const handlePlayAudio = async (audioUrl, postId) => {
+    if (!userId || !token) {
+      Alert.alert('Error', 'You must be logged in to play audio.');
+      return;
+    }
+
     try {
       if (currentSound) {
         await currentSound.stopAsync();
@@ -171,6 +226,11 @@ const Posts = () => {
   };
 
   const handleAIAction = async (postId, action) => {
+    if (!userId || !token) {
+      Alert.alert('Error', 'You must be logged in to perform this action.');
+      return;
+    }
+
     try {
       const post = posts.find(p => p.id === postId);
       if (!post) {
@@ -203,7 +263,10 @@ const Posts = () => {
         });
         formData.append('user_id', userId.toString());
         const response = await axios.post(`${API_BASE_URL}/speech-to-text`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+          headers: { 
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`,
+          },
         });
         const transcription = response.data.response;
         setTranscriptions(prev => ({ ...prev, [postId]: transcription }));
@@ -213,6 +276,8 @@ const Posts = () => {
           user_id: userId,
           text,
           action,
+        }, {
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (action === 'tts') {
@@ -247,6 +312,45 @@ const Posts = () => {
     }
     navigation.navigate('Ebook', { postId });
   };
+
+  if (userLoading) {
+    return (
+      <ScreenWrapper bg={colors.background}>
+        <SafeAreaView style={styles.container}>
+          <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+          <View style={styles.emptyState}>
+            <Feather name="loader" size={48} color={colors.textSecondary} />
+            <Text style={styles.emptyStateText}>Loading user data...</Text>
+          </View>
+        </SafeAreaView>
+        <NavigationBar />
+      </ScreenWrapper>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <ScreenWrapper bg={colors.background}>
+        <SafeAreaView style={styles.container}>
+          <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+          <View style={styles.emptyState}>
+            <Feather name="alert-circle" size={48} color={colors.textSecondary} />
+            <Text style={styles.emptyStateText}>Authentication Required</Text>
+            <Text style={styles.emptyStateSubText}>Please login to view posts.</Text>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => navigation.navigate('Login')}
+              activeOpacity={0.8}
+            >
+              <Feather name="log-in" size={20} color={colors.surface} />
+              <Text style={styles.addButtonText}>Go to Login</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+        <NavigationBar />
+      </ScreenWrapper>
+    );
+  }
 
   return (
     <ScreenWrapper bg={colors.background}>

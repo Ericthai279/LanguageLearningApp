@@ -7,6 +7,7 @@ import { NavigationBar } from "../components/NavigationBar";
 import Feather from '@expo/vector-icons/Feather';
 import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define colors for consistent theming (matching Posts.jsx)
 const colors = {
@@ -29,24 +30,58 @@ const Ebook = () => {
   const [currentSound, setCurrentSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [fileUri, setFileUri] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [token, setToken] = useState(null);
+  const [userLoading, setUserLoading] = useState(true);
   const navigation = useNavigation();
   const route = useRoute();
   const postId = route.params?.postId; // Safely access postId with optional chaining
   const API_BASE_URL = "https://404854cfd8c3.ngrok-free.app";
-  const userId = 8; // Replace with actual user ID from auth context
 
   useEffect(() => {
-    if (!postId) {
-      Alert.alert('Error', 'No post selected. Please select a document from the Posts screen.', [
-        { text: 'OK', onPress: () => navigation.navigate('Posts') },
-      ]);
+    const getUserData = async () => {
+      try {
+        const userJson = await AsyncStorage.getItem('user');
+        if (userJson) {
+          const userData = JSON.parse(userJson);
+          console.log('Retrieved user data for ebook:', userData);
+          setUserId(userData.id);
+          setToken(userData.token);
+        } else {
+          Alert.alert(
+            'Authentication Required',
+            'Please login to view documents',
+            [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+          );
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        Alert.alert('Error', 'Failed to load user data. Please login again.');
+        navigation.navigate('Login');
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    getUserData();
+  }, [navigation]);
+
+  useEffect(() => {
+    if (!postId || !userId || !token) {
+      if (!postId) {
+        Alert.alert('Error', 'No post selected. Please select a document from the Posts screen.', [
+          { text: 'OK', onPress: () => navigation.navigate('Posts') },
+        ]);
+      }
       return;
     }
 
     const fetchPostAndExtractText = async () => {
       try {
         // Fetch the specific post
-        const res = await axios.get(`${API_BASE_URL}/posts/${postId}`);
+        const res = await axios.get(`${API_BASE_URL}/posts/${postId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const post = res.data;
 
         // Check if post has a supported document file
@@ -65,7 +100,7 @@ const Ebook = () => {
         const downloadResumable = FileSystem.createDownloadResumable(
           url,
           fileUri,
-          {},
+          { headers: { Authorization: `Bearer ${token}` } },
           (downloadProgress) => {
             const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
             console.log(`Download progress: ${progress * 100}%`);
@@ -85,7 +120,10 @@ const Ebook = () => {
         });
 
         const response = await axios.post(`${API_BASE_URL}/document/extract`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+          headers: { 
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`,
+          },
         });
 
         setExtractedText(response.data.text);
@@ -97,14 +135,16 @@ const Ebook = () => {
       }
     };
 
-    fetchPostAndExtractText();
+    if (userId && token) {
+      fetchPostAndExtractText();
+    }
 
     return () => {
       if (currentSound) {
         currentSound.unloadAsync().catch(console.error);
       }
     };
-  }, [postId, navigation]);
+  }, [postId, userId, token, navigation]);
 
   const stopAudio = async () => {
     if (currentSound) {
@@ -153,6 +193,11 @@ const Ebook = () => {
         return;
       }
 
+      if (!userId || !token) {
+        Alert.alert('Error', 'You must be logged in to perform this action.');
+        return;
+      }
+
       if (action === 'stt') {
         Alert.alert('Error', 'STT is not applicable for document text. Please use an audio file.');
         return;
@@ -162,6 +207,8 @@ const Ebook = () => {
         user_id: userId,
         text: extractedText,
         action,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (action === 'tts') {
@@ -179,22 +226,39 @@ const Ebook = () => {
     }
   };
 
-  if (!postId) {
+  if (userLoading) {
+    return (
+      <ScreenWrapper bg={colors.background}>
+        <SafeAreaView style={styles.container}>
+          <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+          <View style={styles.emptyState}>
+            <Feather name="loader" size={48} color={colors.textSecondary} />
+            <Text style={styles.emptyStateText}>Loading user data...</Text>
+          </View>
+        </SafeAreaView>
+        <NavigationBar />
+      </ScreenWrapper>
+    );
+  }
+
+  if (!userId || !postId) {
     return (
       <ScreenWrapper bg={colors.background}>
         <SafeAreaView style={styles.container}>
           <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
           <View style={styles.emptyState}>
             <Feather name="alert-circle" size={48} color={colors.textSecondary} />
-            <Text style={styles.emptyStateText}>No Post Selected</Text>
-            <Text style={styles.emptyStateSubText}>Please select a document from the Posts screen.</Text>
+            <Text style={styles.emptyStateText}>No Post Selected or Not Logged In</Text>
+            <Text style={styles.emptyStateSubText}>
+              {!userId ? 'Please login to view documents.' : 'Please select a document from the Posts screen.'}
+            </Text>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => navigation.navigate('Posts')}
+              onPress={() => navigation.navigate(userId ? 'Posts' : 'Login')}
               activeOpacity={0.8}
             >
               <Feather name="arrow-left" size={20} color={colors.surface} />
-              <Text style={styles.backButtonText}>Go to Posts</Text>
+              <Text style={styles.backButtonText}>{userId ? 'Go to Posts' : 'Go to Login'}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
