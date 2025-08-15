@@ -17,7 +17,7 @@ const UpdatePost = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const postId = route.params?.postId;
-  const API_BASE_URL = "https://404854cfd8c3.ngrok-free.app";
+  const API_URL = "http://192.168.31.228:8000";
 
   // Fetch the current post data when component mounts
   useEffect(() => {
@@ -31,7 +31,7 @@ const UpdatePost = () => {
 
   const fetchPostData = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/posts/${postId}`);
+      const response = await fetch(`${API_URL}/posts/${postId}`);
       const data = await response.json();
       
       if (response.ok) {
@@ -93,7 +93,7 @@ const UpdatePost = () => {
       }
       
       // Use fetch API instead of axios for more control
-      const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
+      const response = await fetch(`${API_URL}/posts/${postId}`, {
         method: "PUT",
         body: formData,
         headers: {

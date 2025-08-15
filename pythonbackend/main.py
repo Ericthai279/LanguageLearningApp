@@ -262,7 +262,7 @@ def load_whisper_model():
     if whisper_model is None:
         logger.info("Loading Whisper model...")
         try:
-            # Use 'turbo' model for faster processing with good accuracy
+            
             whisper_model = whisper.load_model("tiny")
             logger.info("Whisper model loaded successfully.")
         except Exception as e:
@@ -361,6 +361,7 @@ def load_grammar_tool(lang):
         logger.info("Grammar tool loaded.")
     return tool_en if lang == 'eng' else None
 
+#detech language
 def detect_language(text):
     try:
         lang = detect(text)
@@ -373,6 +374,7 @@ def detect_language(text):
         # Default to English if detection fails
         return 'eng'
 
+#translate
 def translate_text(text, source_lang="eng", target_lang="vie"):
     load_translation_model()
     prefix = f"{source_lang}:"
@@ -382,6 +384,7 @@ def translate_text(text, source_lang="eng", target_lang="vie"):
     translated = translation_tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
     return translated
 
+#generate and save audio
 def generate_and_save_audio(text, lang, output_dir=UPLOAD_DIR):
     model, tokenizer = load_tts_model(lang)
     inputs = tokenizer(text, return_tensors="pt")
@@ -412,11 +415,14 @@ def check_grammar(text, lang):
     return "\n\n".join(corrections) if corrections else "No grammar issues found."
 
 # Authentication dependency
-def get_current_user(db: Session = Depends(get_db), token: str = Depends(lambda x: x.headers.get("Authorization"))):
-    if not token or not token.startswith("Bearer "):
+def get_token(request: Request):
+    return request.headers.get("Authorization")
+
+def get_current_user(db: Session = Depends(get_db), authorization: str = Depends(get_token)):
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     
-    token = token.split("Bearer ")[1]
+    token = authorization.split("Bearer ")[1]
     
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -495,6 +501,37 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         "username": user.username
     }
 
+@app.post("/auth/refresh", response_model=Token)
+def refresh_token(db: Session = Depends(get_db), authorization: str = Depends(get_token)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    
+    token = authorization.split("Bearer ")[1]
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        
+        user = get_user_by_id(db, int(user_id))
+        if user is None:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        new_token = create_access_token(
+            data={"sub": str(user.id)},
+            expires_delta=access_token_expires
+        )
+        
+        return {
+            "access_token": new_token,
+            "token_type": "bearer",
+            "user_id": user.id,
+            "username": user.username
+        }
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 # User endpoints
 @app.get("/users", response_model=List[UserResponse])
 def get_users(db: Session = Depends(get_db)):
@@ -510,16 +547,19 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 @app.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
-    bio: Optional[str] = Form(None),
+    bio: Optional[str] = Form(''),
     document: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"Received update_user request for user_id={user_id}, bio={bio}, document={document.filename if document else None}")
     user = get_user_by_id(db, user_id)
     if not user:
+        logger.error(f"User not found: user_id={user_id}")
         raise HTTPException(status_code=404, detail="User not found")
     
     if user.id != current_user.id:
+        logger.error(f"Unauthorized update attempt: user_id={user_id}, current_user_id={current_user.id}")
         raise HTTPException(status_code=403, detail="Not authorized to update this user")
     
     profile_picture = user.profile_picture
@@ -544,21 +584,23 @@ async def update_user(
         finally:
             document.file.close()
     
-    if bio is not None:
-        user.bio = bio
+    user.bio = bio
     if profile_picture:
         user.profile_picture = profile_picture
     
     db.commit()
     db.refresh(user)
     
+    logger.info(f"User updated successfully: user_id={user_id}, bio={bio}")
     return user
+
+
 # Post endpoints
 @app.get("/posts", response_model=List[PostResponse])
 def get_posts(db: Session = Depends(get_db)):
     posts = db.query(Post).all()
     return posts
-# Add this endpoint after the existing get_posts endpoint
+
 @app.get("/posts/{post_id}", response_model=PostResponse)
 def get_post(post_id: int, db: Session = Depends(get_db)):
     post = db.query(Post).filter(Post.id == post_id).first()
@@ -780,7 +822,7 @@ async def process_chat(input: ChatInput, db: Session = Depends(get_db)):
         user_id = input.user_id
         text = input.text.strip()
         action = input.action.lower()
-        
+        logger.info(f"Processing chat: user_id={user_id}, text='{text}', action={action}")
         if not text:
             raise HTTPException(status_code=400, detail="Text is required.")
         if action not in ['translate', 'tts', 'grammar', 'stt']:
@@ -793,6 +835,7 @@ async def process_chat(input: ChatInput, db: Session = Depends(get_db)):
 
         # Process chat based on action
         lang = detect_language(text)
+        logger.info(f"Detected language: {lang}")
         response = ""
         audio_path = None
         detected_language = None
@@ -800,6 +843,7 @@ async def process_chat(input: ChatInput, db: Session = Depends(get_db)):
         if action == "translate":
             source_lang = 'eng' if lang == 'eng' else 'vie'
             target_lang = 'vie' if source_lang == 'eng' else 'eng'
+            logger.info(f"Translating from {source_lang} to {target_lang}")
             response = translate_text(text, source_lang, target_lang)
         elif action == "tts":
             audio_path = generate_and_save_audio(text, lang)
@@ -831,6 +875,26 @@ async def process_chat(input: ChatInput, db: Session = Depends(get_db)):
 @app.get("/chat/history", response_model=List[ChatResponse])
 async def get_history(db: Session = Depends(get_db)):
     messages = db.query(ChatMessage).order_by(ChatMessage.created_at.desc()).all()
+    return messages
+
+@app.get("/chat/history/{user_id}", response_model=List[ChatResponse])
+async def get_user_chat_history(user_id: int, db: Session = Depends(get_db)):
+    # Verify user exists
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Fetch messages for the specific user
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.user_id == user_id)
+        .order_by(ChatMessage.created_at.desc())
+        .all()
+    )
+    
+    if not messages:
+        return []  # Return empty list if no messages found
+    
     return messages
 @app.post("/document/extract", response_model=dict)
 async def extract_document_text(file: UploadFile = File(...)):

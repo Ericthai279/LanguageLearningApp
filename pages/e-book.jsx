@@ -29,6 +29,7 @@ const Ebook = () => {
   const [transcription, setTranscription] = useState("");
   const [currentSound, setCurrentSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [fileUri, setFileUri] = useState(null);
   const [userId, setUserId] = useState(null);
   const [token, setToken] = useState(null);
@@ -36,7 +37,7 @@ const Ebook = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const postId = route.params?.postId; // Safely access postId with optional chaining
-  const API_BASE_URL = "https://404854cfd8c3.ngrok-free.app";
+  const API_URL = "http://192.168.31.228:8000";
 
   useEffect(() => {
     const getUserData = async () => {
@@ -79,7 +80,7 @@ const Ebook = () => {
     const fetchPostAndExtractText = async () => {
       try {
         // Fetch the specific post
-        const res = await axios.get(`${API_BASE_URL}/posts/${postId}`, {
+        const res = await axios.get(`${API_URL}/posts/${postId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const post = res.data;
@@ -94,7 +95,7 @@ const Ebook = () => {
 
         // Download the file
         const fileName = post.media_url.split('/').pop();
-        const url = `${API_BASE_URL}${post.media_url}`;
+        const url = `${API_URL}${post.media_url}`;
         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
         const downloadResumable = FileSystem.createDownloadResumable(
@@ -119,7 +120,7 @@ const Ebook = () => {
           type: post.media_url.endsWith('.pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
 
-        const response = await axios.post(`${API_BASE_URL}/document/extract`, formData, {
+        const response = await axios.post(`${API_URL}/document/extract`, formData, {
           headers: { 
             'Content-Type': 'multipart/form-data',
             Authorization: `Bearer ${token}`,
@@ -153,6 +154,7 @@ const Ebook = () => {
         await currentSound.unloadAsync();
         setCurrentSound(null);
         setIsPlaying(false);
+        setIsPaused(false);
       } catch (error) {
         console.error('Error stopping audio:', error);
       }
@@ -161,19 +163,30 @@ const Ebook = () => {
 
   const handlePlayAudio = async (audioUrl) => {
     try {
+      if (currentSound && isPaused) {
+        // Resume paused audio
+        await currentSound.playAsync();
+        setIsPlaying(true);
+        setIsPaused(false);
+        return;
+      }
+
       if (currentSound) {
+        // Stop and unload current audio if playing
         await stopAudio();
       }
 
-      const fullUrl = `${API_BASE_URL}${audioUrl}`;
+      const fullUrl = `${API_URL}${audioUrl}`;
       console.log('Playing audio from:', fullUrl);
       setIsPlaying(true);
+      setIsPaused(false);
       const { sound } = await Audio.Sound.createAsync(
         { uri: fullUrl },
         { shouldPlay: true },
         (status) => {
           if (status.didJustFinish) {
             setIsPlaying(false);
+            setIsPaused(false);
             setCurrentSound(null);
           }
         }
@@ -182,7 +195,21 @@ const Ebook = () => {
     } catch (error) {
       console.error('Error playing audio:', error);
       setIsPlaying(false);
+      setIsPaused(false);
       Alert.alert('Error', 'Failed to play audio.');
+    }
+  };
+
+  const handlePauseAudio = async () => {
+    if (currentSound && isPlaying) {
+      try {
+        await currentSound.pauseAsync();
+        setIsPlaying(false);
+        setIsPaused(true);
+      } catch (error) {
+        console.error('Error pausing audio:', error);
+        Alert.alert('Error', 'Failed to pause audio.');
+      }
     }
   };
 
@@ -203,7 +230,7 @@ const Ebook = () => {
         return;
       }
 
-      const response = await axios.post(`${API_BASE_URL}/chat`, {
+      const response = await axios.post(`${API_URL}/chat`, {
         user_id: userId,
         text: extractedText,
         action,
@@ -299,11 +326,11 @@ const Ebook = () => {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.actionButton, styles.aiButton]}
-                    onPress={() => handleAIAction('tts')}
+                    onPress={() => isPaused ? handlePlayAudio(null) : handleAIAction('tts')}
                     activeOpacity={0.8}
                   >
-                    <Feather name="volume-2" size={16} color={colors.surface} />
-                    <Text style={styles.actionButtonText}>TTS</Text>
+                    <Feather name={isPaused ? "play-circle" : "volume-2"} size={16} color={colors.surface} />
+                    <Text style={styles.actionButtonText}>{isPaused ? "Resume" : "TTS"}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.actionButton, styles.aiButton]}
@@ -316,10 +343,20 @@ const Ebook = () => {
                   {isPlaying && (
                     <TouchableOpacity
                       style={[styles.actionButton, styles.playingButton]}
-                      onPress={stopAudio}
+                      onPress={handlePauseAudio}
                       activeOpacity={0.8}
                     >
                       <Feather name="pause" size={16} color={colors.surface} />
+                      <Text style={styles.actionButtonText}>Pause Audio</Text>
+                    </TouchableOpacity>
+                  )}
+                  {(isPlaying || isPaused) && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.stopButton]}
+                      onPress={stopAudio}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="stop-circle" size={16} color={colors.surface} />
                       <Text style={styles.actionButtonText}>Stop Audio</Text>
                     </TouchableOpacity>
                   )}
@@ -427,6 +464,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
   },
   playingButton: {
+    backgroundColor: colors.danger,
+  },
+  stopButton: {
     backgroundColor: colors.danger,
   },
   actionButtonText: {

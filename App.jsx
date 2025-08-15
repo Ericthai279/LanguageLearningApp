@@ -24,6 +24,7 @@ import SignUp from "./pages/SignUp.jsx";
 import Chatbot from "./pages/Chatbot.jsx";
 import ProfileScreen from "./pages/ProfileScreen.jsx";
 import Ebook from "./pages/e-book.jsx";
+import Comment from "./pages/comment.jsx";
 
 const Stack = createNativeStackNavigator();
 
@@ -45,18 +46,31 @@ const HomeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Initial auth check
     checkUserAuth();
-  }, []);
+
+    // Add listener for navigation focus event to refresh user state
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkUserAuth();
+    });
+
+    // Cleanup listener on unmount
+    return unsubscribe;
+  }, [navigation]);
 
   const checkUserAuth = async () => {
     try {
+      setLoading(true);
       const userJson = await AsyncStorage.getItem('user');
       if (userJson) {
         const userData = JSON.parse(userJson);
         setUser(userData);
+      } else {
+        setUser(null);
       }
     } catch (error) {
       console.error('Error checking auth:', error);
+      Alert.alert('Error', 'Failed to check authentication status.');
     } finally {
       setLoading(false);
     }
@@ -346,6 +360,11 @@ export default function App() {
         <Stack.Screen 
           name="Ebook" 
           component={Ebook}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="Comment" 
+          component={Comment}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

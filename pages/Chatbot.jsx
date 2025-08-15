@@ -8,7 +8,7 @@ import Button from '../components/Button';
 import Feather from '@expo/vector-icons/Feather';
 import { NavigationBar } from '../components/NavigationBar';
 
-const API_URL = 'https://404854cfd8c3.ngrok-free.app';
+const API_URL = 'http://192.168.31.228:8000';
 
 const colors = {
   primary: '#007AFF',
@@ -100,16 +100,17 @@ const Chatbot = ({ navigation }) => {
   }, [navigation]);
 
   const fetchHistory = async (authToken) => {
-    if (!authToken) return;
+    if (!authToken || !userId) return;
     try {
-      console.log('Fetching chat history...');
-      const response = await axios.get(`${API_URL}/chat/history`, {
+      console.log('Fetching chat history for user:', userId);
+      const response = await axios.get(`${API_URL}/chat/history/${userId}`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       console.log('Chat history response:', response.data);
       setMessages(response.data);
     } catch (error) {
       console.error('Error fetching history:', error);
+      Alert.alert('Error', 'Failed to fetch chat history.');
     }
   };
 

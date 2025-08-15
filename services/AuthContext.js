@@ -8,7 +8,7 @@
 // export const AuthProvider = ({ children }) => {
 //   const [user, setUser] = useState(null);
 //   const [isLoading, setIsLoading] = useState(true);
-//   const API_BASE_URL = "https://404854cfd8c3.ngrok-free.app";
+//   const API_BASE_URL = "http://192.168.31.228:8000";
 
 //   useEffect(() => {
 //     const loadUser = async () => {

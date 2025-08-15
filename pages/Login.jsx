@@ -10,10 +10,10 @@ import Button from '../components/Button';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { NavigationBar } from '../components/NavigationBar';
+
 
 const Login = () => {
-  const API_URL = 'https://404854cfd8c3.ngrok-free.app'; // FastAPI backend URL
+  const API_URL = 'http://192.168.31.228:8000'; // FastAPI backend URL
   const emailRef = useRef('');
   const passwordRef = useRef('');
   const [loading, setLoading] = useState(false);
@@ -137,7 +137,7 @@ const Login = () => {
             </Pressable>
           </View>
         </View>
-        <NavigationBar/>
+        
     </ScreenWrapper>
     </GestureHandlerRootView>
   );

@@ -8,9 +8,9 @@ import Input from '../components/Input';
 import Feather from '@expo/vector-icons/Feather';
 import Button from '../components/Button';
 import axios from 'axios';
-import { NavigationBar } from '../components/NavigationBar';
+
 // Base URL for API calls - updated for FastAPI backend
-const API_URL = 'https://404854cfd8c3.ngrok-free.app'; // Updated port to FastAPI backend
+const API_URL = 'http://192.168.31.228:8000'; // Updated port to FastAPI backend
 
 const SignUp = ({ navigation }) => {
   const emailRef = useRef("");
@@ -121,7 +121,7 @@ const SignUp = ({ navigation }) => {
             </Pressable>
           </View>
         </View>
-        <NavigationBar/>
+        
     </ScreenWrapper>
     </GestureHandlerRootView>
   );

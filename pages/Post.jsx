@@ -1,6 +1,6 @@
 import axios from "axios";
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, ScrollView, StyleSheet, Alert, TouchableOpacity, SafeAreaView, StatusBar } from "react-native";
+import { View, Text, Image, ScrollView, StyleSheet, Alert, TouchableOpacity, SafeAreaView, StatusBar, RefreshControl } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import ScreenWrapper from "../components/screenwraper";
 import { NavigationBar } from "../components/NavigationBar";
@@ -38,8 +38,9 @@ const Posts = () => {
   const [userId, setUserId] = useState(null);
   const [token, setToken] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
-  const API_BASE_URL = "https://404854cfd8c3.ngrok-free.app";
+  const API_URL = "http://192.168.31.228:8000";
 
   useEffect(() => {
     const getUserData = async () => {
@@ -70,20 +71,23 @@ const Posts = () => {
     getUserData();
   }, [navigation]);
 
-  useEffect(() => {
-    const fetchAllPosts = async () => {
-      if (!userId || !token) return;
-      try {
-        const res = await axios.get(`${API_BASE_URL}/posts`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setPosts(res.data);
-      } catch (err) {
-        console.error('Error fetching posts:', err);
-        Alert.alert('Error', 'Failed to load posts. Please try again.');
-      }
-    };
+  const fetchAllPosts = async () => {
+    if (!userId || !token) return;
+    try {
+      setRefreshing(true);
+      const res = await axios.get(`${API_URL}/posts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPosts(res.data);
+    } catch (err) {
+      console.error('Error fetching posts:', err);
+      Alert.alert('Error', 'Failed to load posts. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     if (userId && token) {
       fetchAllPosts();
     }
@@ -94,6 +98,10 @@ const Posts = () => {
       }
     };
   }, [userId, token]);
+
+  const onRefresh = async () => {
+    await fetchAllPosts();
+  };
 
   const handleDownload = async (post) => {
     if (!post.media_url) {
@@ -108,7 +116,7 @@ const Posts = () => {
 
     try {
       const fileName = post.media_url.split('/').pop();
-      const url = `${API_BASE_URL}${post.media_url}`;
+      const url = `${API_URL}${post.media_url}`;
       const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
       const downloadResumable = FileSystem.createDownloadResumable(
@@ -163,7 +171,7 @@ const Posts = () => {
         style: "destructive",
         onPress: async () => {
           try {
-            await axios.delete(`${API_BASE_URL}/posts/${id}`, {
+            await axios.delete(`${API_URL}/posts/${id}`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             setPosts(posts.filter((post) => post.id !== id));
@@ -204,7 +212,7 @@ const Posts = () => {
         setPlayingPostId(null);
       }
       if (playingPostId === postId) return;
-      const fullUrl = `${API_BASE_URL}${audioUrl}`;
+      const fullUrl = `${API_URL}${audioUrl}`;
       console.log('Playing audio from:', fullUrl);
       setPlayingPostId(postId);
       const { sound } = await Audio.Sound.createAsync(
@@ -262,7 +270,7 @@ const Posts = () => {
           type: 'audio/wav',
         });
         formData.append('user_id', userId.toString());
-        const response = await axios.post(`${API_BASE_URL}/speech-to-text`, formData, {
+        const response = await axios.post(`${API_URL}/speech-to-text`, formData, {
           headers: { 
             'Content-Type': 'multipart/form-data',
             Authorization: `Bearer ${token}`,
@@ -272,7 +280,7 @@ const Posts = () => {
         setTranscriptions(prev => ({ ...prev, [postId]: transcription }));
         Alert.alert('Transcription Result', transcription);
       } else {
-        const response = await axios.post(`${API_BASE_URL}/chat`, {
+        const response = await axios.post(`${API_URL}/chat`, {
           user_id: userId,
           text,
           action,
@@ -300,7 +308,7 @@ const Posts = () => {
     if (!mediaUrl) return null;
     if (mediaUrl.endsWith('.pdf')) return PDF_ICON;
     if (mediaUrl.endsWith('.docx')) return DOCX_ICON;
-    return { uri: `${API_BASE_URL}${mediaUrl}` };
+    return { uri: `${API_URL}${mediaUrl}` };
   };
 
   const handleViewEbook = (postId) => {
@@ -311,6 +319,11 @@ const Posts = () => {
       return;
     }
     navigation.navigate('Ebook', { postId });
+  };
+
+  const handleViewComments = (postId) => {
+    console.log('Navigating to Comment with postId:', postId);
+    navigation.navigate('Comment', { postId });
   };
 
   if (userLoading) {
@@ -356,7 +369,18 @@ const Posts = () => {
     <ScreenWrapper bg={colors.background}>
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary, colors.secondary]}
+            />
+          }
+        >
           <View style={styles.header}>
             <Text style={styles.headerTitle}>All Posts</Text>
             <Text style={styles.headerSubtitle}>Browse community content</Text>
@@ -415,6 +439,14 @@ const Posts = () => {
                         >
                           <Feather name="edit-3" size={16} color={colors.surface} />
                           <Text style={styles.actionButtonText}>Update</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.commentButton]}
+                          onPress={() => handleViewComments(post.id)}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="message-circle" size={16} color={colors.surface} />
+                          <Text style={styles.actionButtonText}>Comment</Text>
                         </TouchableOpacity>
                         {post.media_url && (
                           <TouchableOpacity
@@ -621,6 +653,9 @@ const styles = StyleSheet.create({
   },
   updateButton: {
     backgroundColor: colors.warning,
+  },
+  commentButton: {
+    backgroundColor: colors.secondary,
   },
   shareButton: {
     backgroundColor: colors.secondary,
