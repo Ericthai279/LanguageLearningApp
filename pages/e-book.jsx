@@ -37,7 +37,7 @@ const Ebook = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const postId = route.params?.postId; // Safely access postId with optional chaining
-  const API_URL = "http://192.168.31.228:8000";
+  const API_URL = "https://a0010dacf68e.ngrok-free.app";
 
   useEffect(() => {
     const getUserData = async () => {

@@ -10,7 +10,7 @@ import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 
 // API base URL
-const API_URL = 'http://192.168.31.228:8000';
+const API_URL = 'https://a0010dacf68e.ngrok-free.app';
 
 // Local asset references
 const PDF_ICON = require('../assets/icons/pdf-icon.png');

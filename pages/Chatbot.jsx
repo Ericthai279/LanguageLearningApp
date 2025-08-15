@@ -8,7 +8,7 @@ import Button from '../components/Button';
 import Feather from '@expo/vector-icons/Feather';
 import { NavigationBar } from '../components/NavigationBar';
 
-const API_URL = 'http://192.168.31.228:8000';
+const API_URL = 'https://a0010dacf68e.ngrok-free.app';
 
 const colors = {
   primary: '#007AFF',
@@ -28,6 +28,7 @@ const Chatbot = ({ navigation }) => {
   const [action, setAction] = useState('translate');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [userId, setUserId] = useState(null);
   const [token, setToken] = useState(null);
   const [audioAvailable, setAudioAvailable] = useState(false);
@@ -39,6 +40,75 @@ const Chatbot = ({ navigation }) => {
   const [recordingPermission, setRecordingPermission] = useState(false);
   const [sttLoading, setSttLoading] = useState(false);
   const [showSTTOptions, setShowSTTOptions] = useState(false);
+
+  const refreshToken = async () => {
+    try {
+      console.log('Attempting to refresh token...');
+      const response = await axios.post(`${API_URL}/auth/refresh`, {}, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      console.log('Token refresh successful:', response.data);
+      const newToken = response.data.access_token;
+      const userData = { id: userId, token: newToken };
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      setToken(newToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      return newToken;
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      Alert.alert(
+        'Session Expired',
+        'Your session has expired. Please login again.',
+        [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+      );
+      throw error;
+    }
+  };
+
+  const fetchHistory = async (authToken) => {
+    if (!authToken || !userId) return;
+    setHistoryLoading(true);
+    try {
+      console.log('Fetching chat history for user:', userId);
+      const response = await axios.get(`${API_URL}/chat/history/${userId}`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      console.log('Chat history response:', response.data);
+      setMessages(response.data);
+      await AsyncStorage.setItem('chatHistory', JSON.stringify(response.data));
+    } catch (error) {
+      console.error('Error fetching history:', error);
+      if (error.response?.status === 401) {
+        try {
+          const newToken = await refreshToken();
+          const response = await axios.get(`${API_URL}/chat/history/${userId}`, {
+            headers: { 'Authorization': `Bearer ${newToken}` }
+          });
+          setMessages(response.data);
+          await AsyncStorage.setItem('chatHistory', JSON.stringify(response.data));
+        } catch (refreshError) {
+          console.error('Failed to refresh token and fetch history:', refreshError);
+          const cachedHistory = await AsyncStorage.getItem('chatHistory');
+          if (cachedHistory) {
+            setMessages(JSON.parse(cachedHistory));
+            Alert.alert('Offline Mode', 'Showing cached chat history due to authentication issues.');
+          } else {
+            Alert.alert('Error', 'Failed to fetch chat history and no cached history available.');
+          }
+        }
+      } else {
+        const cachedHistory = await AsyncStorage.getItem('chatHistory');
+        if (cachedHistory) {
+          setMessages(JSON.parse(cachedHistory));
+          Alert.alert('Offline Mode', 'Showing cached chat history due to network issues.');
+        } else {
+          Alert.alert('Error', 'Failed to fetch chat history and no cached history available.');
+        }
+      }
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -73,6 +143,11 @@ const Chatbot = ({ navigation }) => {
           setUserId(userData.id);
           setToken(userData.token);
           axios.defaults.headers.common['Authorization'] = `Bearer ${userData.token}`;
+          const cachedHistory = await AsyncStorage.getItem('chatHistory');
+          if (cachedHistory) {
+            setMessages(JSON.parse(cachedHistory));
+            console.log('Loaded cached chat history on mount');
+          }
           fetchHistory(userData.token);
         } else {
           Alert.alert(
@@ -98,21 +173,6 @@ const Chatbot = ({ navigation }) => {
       }
     };
   }, [navigation]);
-
-  const fetchHistory = async (authToken) => {
-    if (!authToken || !userId) return;
-    try {
-      console.log('Fetching chat history for user:', userId);
-      const response = await axios.get(`${API_URL}/chat/history/${userId}`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      console.log('Chat history response:', response.data);
-      setMessages(response.data);
-    } catch (error) {
-      console.error('Error fetching history:', error);
-      Alert.alert('Error', 'Failed to fetch chat history.');
-    }
-  };
 
   const handlePlayAudio = async (audioPath, messageId) => {
     if (!audioAvailable || !Audio) {
@@ -336,11 +396,13 @@ const Chatbot = ({ navigation }) => {
         timeout: 60000,
       });
       console.log('STT file response:', response.data);
-      setMessages([response.data, ...messages]);
+      const updatedMessages = [response.data, ...messages];
+      setMessages(updatedMessages);
+      await AsyncStorage.setItem('chatHistory', JSON.stringify(updatedMessages));
       if (response.data.response) setText(response.data.response);
       Alert.alert(
         'Speech Transcribed from File',
-        `File: ${selectedFile.name}\nDetected language: ${response.data.detected_language || 'Unknown'}\nText has been added to input field.`
+        `File: ${fileInfo.name}\nDetected language: ${response.data.detected_language || 'Unknown'}\nText has been added to input field.`
       );
     } catch (error) {
       console.error('STT file processing error:', error);
@@ -348,7 +410,33 @@ const Chatbot = ({ navigation }) => {
       if (error.response) {
         console.error('STT File Error status:', error.response.status);
         console.error('STT File Error data:', error.response.data);
-        if (error.response.status === 422) {
+        if (error.response.status === 401) {
+          try {
+            const newToken = await refreshToken();
+            const formData = new FormData();
+            formData.append('user_id', userId.toString());
+            formData.append('audio_file', audioFile);
+            const retryResponse = await axios.post(`${API_URL}/speech-to-text`, formData, {
+              headers: {
+                'Authorization': `Bearer ${newToken}`,
+                'Content-Type': 'multipart/form-data',
+              },
+              timeout: 60000,
+            });
+            const updatedMessages = [retryResponse.data, ...messages];
+            setMessages(updatedMessages);
+            await AsyncStorage.setItem('chatHistory', JSON.stringify(updatedMessages));
+            if (retryResponse.data.response) setText(retryResponse.data.response);
+            Alert.alert(
+              'Speech Transcribed from File',
+              `File: ${fileInfo.name}\nDetected language: ${retryResponse.data.detected_language || 'Unknown'}\nText has been added to input field.`
+            );
+          } catch (refreshError) {
+            console.error('Failed to refresh token:', refreshError);
+            errorMessage = 'Authentication failed. Please login again.';
+            Alert.alert('Error', errorMessage);
+          }
+        } else if (error.response.status === 422) {
           errorMessage = 'Invalid audio file format or the file is too long (max 1 minute).';
         } else if (error.response.data?.detail) {
           errorMessage = error.response.data.detail;
@@ -388,7 +476,9 @@ const Chatbot = ({ navigation }) => {
         timeout: 30000,
       });
       console.log('STT response:', response.data);
-      setMessages([response.data, ...messages]);
+      const updatedMessages = [response.data, ...messages];
+      setMessages(updatedMessages);
+      await AsyncStorage.setItem('chatHistory', JSON.stringify(updatedMessages));
       if (response.data.response && response.data.response.trim()) {
         setText(response.data.response);
         Alert.alert(
@@ -407,7 +497,40 @@ const Chatbot = ({ navigation }) => {
       if (error.response) {
         console.error('STT Error status:', error.response.status);
         console.error('STT Error data:', error.response.data);
-        if (error.response.status === 422) {
+        if (error.response.status === 401) {
+          try {
+            const newToken = await refreshToken();
+            const formData = new FormData();
+            formData.append('user_id', userId.toString());
+            formData.append('audio_file', audioFile);
+            const retryResponse = await axios.post(`${API_URL}/speech-to-text`, formData, {
+              headers: {
+                'Authorization': `Bearer ${newToken}`,
+                'Content-Type': 'multipart/form-data',
+              },
+              timeout: 30000,
+            });
+            const updatedMessages = [retryResponse.data, ...messages];
+            setMessages(updatedMessages);
+            await AsyncStorage.setItem('chatHistory', JSON.stringify(updatedMessages));
+            if (retryResponse.data.response && retryResponse.data.response.trim()) {
+              setText(retryResponse.data.response);
+              Alert.alert(
+                'Speech Transcribed',
+                `Detected language: ${retryResponse.data.detected_language || 'Unknown'}\nTranscribed: "${retryResponse.data.response}"\n\nText has been added to input field.`
+              );
+            } else {
+              Alert.alert(
+                'No Speech Detected',
+                'The recording did not contain detectable speech. Please try recording again and speak clearly.'
+              );
+            }
+          } catch (refreshError) {
+            console.error('Failed to refresh token:', refreshError);
+            errorMessage = 'Authentication failed. Please login again.';
+            Alert.alert('Error', errorMessage);
+          }
+        } else if (error.response.status === 422) {
           if (error.response.data?.detail?.includes('No speech detected')) {
             errorMessage = 'No speech detected in the recording. Please try speaking more clearly.';
           } else if (error.response.data?.detail?.includes('duration')) {
@@ -455,7 +578,9 @@ const Chatbot = ({ navigation }) => {
         }
       });
       console.log('Chat response:', response.data);
-      setMessages([response.data, ...messages]);
+      const updatedMessages = [response.data, ...messages];
+      setMessages(updatedMessages);
+      await AsyncStorage.setItem('chatHistory', JSON.stringify(updatedMessages));
       setText('');
       if (action === 'tts' && response.data.audio_path) {
         if (audioAvailable) {
@@ -469,17 +594,41 @@ const Chatbot = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error processing chat:', error);
+      let errorMessage = 'Something went wrong while processing your request.';
       if (error.response) {
         console.error('Error status:', error.response.status);
         console.error('Error data:', error.response.data);
         console.error('Error headers:', error.response.headers);
-      }
-      let errorMessage = 'Something went wrong while processing your request.';
-      if (error.response) {
-        if (error.response.status === 422) {
+        if (error.response.status === 401) {
+          try {
+            const newToken = await refreshToken();
+            const retryResponse = await axios.post(`${API_URL}/chat`, payload, {
+              headers: {
+                'Authorization': `Bearer ${newToken}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            const updatedMessages = [retryResponse.data, ...messages];
+            setMessages(updatedMessages);
+            await AsyncStorage.setItem('chatHistory', JSON.stringify(updatedMessages));
+            setText('');
+            if (action === 'tts' && retryResponse.data.audio_path) {
+              if (audioAvailable) {
+                setTimeout(() => {
+                  handlePlayAudio(retryResponse.data.audio_path, retryResponse.data.id);
+                }, 500);
+              } else {
+                Alert.alert('Audio Generated',
+                  'Audio was generated successfully but playback is not available on this device.');
+              }
+            }
+          } catch (refreshError) {
+            console.error('Failed to refresh token:', refreshError);
+            errorMessage = 'Authentication failed. Please login again.';
+            Alert.alert('Error', errorMessage);
+          }
+        } else if (error.response.status === 422) {
           errorMessage = 'Invalid request data. Please check your input and try again.';
-        } else if (error.response.status === 401) {
-          errorMessage = 'Authentication failed. Please login again.';
         } else if (error.response.data?.detail) {
           errorMessage = error.response.data.detail;
         }
@@ -489,6 +638,20 @@ const Chatbot = ({ navigation }) => {
       Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('chatHistory');
+      setUserId(null);
+      setToken(null);
+      setMessages([]);
+      navigation.navigate('Login');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      Alert.alert('Error', 'Failed to log out. Please try again.');
     }
   };
 
@@ -547,25 +710,34 @@ const Chatbot = ({ navigation }) => {
             {recordingPermission && (
               <Text style={styles.audioStatus}>🎤 Mic Ready</Text>
             )}
+            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+              <Text style={styles.logoutButtonText}>Logout</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        <FlatList
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(item) => item.id.toString()}
-          inverted
-          style={styles.chatList}
-          contentContainerStyle={styles.chatListContent}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No messages yet. Start a conversation!</Text>
-              {userId && (
-                <Text style={styles.userIdText}>User ID: {userId}</Text>
-              )}
-            </View>
-          }
-        />
+        {historyLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading chat history...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={messages}
+            renderItem={renderMessage}
+            keyExtractor={(item) => item.id.toString()}
+            inverted
+            style={styles.chatList}
+            contentContainerStyle={styles.chatListContent}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No messages yet. Start a conversation!</Text>
+                {userId && (
+                  <Text style={styles.userIdText}>User ID: {userId}</Text>
+                )}
+              </View>
+            }
+          />
+        )}
 
         <View style={styles.inputContainer}>
           <View style={styles.inputRow}>
@@ -719,12 +891,34 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 4,
   },
+  logoutButton: {
+    backgroundColor: colors.danger,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  logoutButtonText: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
   chatList: {
     flex: 1,
     backgroundColor: colors.background,
   },
   chatListContent: {
-    paddingBottom: 100, // Adjusted for NavigationBar height (~76px + safe area)
+    paddingBottom: 100,
   },
   messageContainer: {
     marginVertical: 8,
@@ -798,7 +992,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     borderRadius: 12,
     marginTop: 12,
-    marginBottom: 16, // Additional margin to clear NavigationBar
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,

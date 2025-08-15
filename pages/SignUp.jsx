@@ -10,7 +10,7 @@ import Button from '../components/Button';
 import axios from 'axios';
 
 // Base URL for API calls - updated for FastAPI backend
-const API_URL = 'http://192.168.31.228:8000'; // Updated port to FastAPI backend
+const API_URL = 'https://a0010dacf68e.ngrok-free.app'; // Updated port to FastAPI backend
 
 const SignUp = ({ navigation }) => {
   const emailRef = useRef("");

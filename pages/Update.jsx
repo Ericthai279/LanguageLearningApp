@@ -17,7 +17,7 @@ const UpdatePost = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const postId = route.params?.postId;
-  const API_URL = "http://192.168.31.228:8000";
+  const API_URL = "https://a0010dacf68e.ngrok-free.app";
 
   // Fetch the current post data when component mounts
   useEffect(() => {

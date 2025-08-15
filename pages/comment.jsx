@@ -8,7 +8,7 @@ import ScreenWrapper from '../components/screenwraper';
 import { NavigationBar } from '../components/NavigationBar';
 
 // API base URL
-const API_URL = ' http://192.168.31.228:8000';
+const API_URL = ' https://a0010dacf68e.ngrok-free.app';
 
 // Define colors for consistent theming
 const colors = {

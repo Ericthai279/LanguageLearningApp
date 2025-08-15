@@ -40,7 +40,7 @@ const Posts = () => {
   const [userLoading, setUserLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
-  const API_URL = "http://192.168.31.228:8000";
+  const API_URL = "https://a0010dacf68e.ngrok-free.app";
 
   useEffect(() => {
     const getUserData = async () => {
